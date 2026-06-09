@@ -29,3 +29,10 @@ pip install paddleocr paddlepaddle
 pip install rapidocr-onnxruntime
 pip install easyocr
 ```
+
+## Git history
+
+- `45c43d0` - Add Guppy PDF lazy tool v0.2.3
+- `6f9d418` - Initial commit
+
+See `CHANGELOG.md` for version history.
