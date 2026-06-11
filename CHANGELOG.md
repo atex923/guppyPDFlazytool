@@ -1,5 +1,25 @@
 # Changelog
 
+## V0.2.7
+
+- Fixed the first tab lower-left fields being pushed out by the file browser.
+- Changed the left side to a fixed upper/lower grid layout with an elastic center table.
+
+## V0.2.6
+
+- Fixed maximize and resize layout behavior.
+- Updated main column weights, preview area, toolbars, and tables to follow window resizing.
+
+## V0.2.5
+
+- Improved startup speed with lazy loading for PDF, Pillow, numpy, and OCR dependencies.
+- Lets the main window open before feature-specific modules load.
+
+## V0.2.4
+
+- Fixed customtkinter font warning output for `.pyw` / executable startup.
+- Avoids `font_shapes` warnings during launch.
+
 ## V0.2.3
 
 - Changed third and fourth tab action buttons to rounded `CTkButton` styling.
