@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 # =========================================================
-# Guppy PDF手搓工具 V0.3.0
+# Guppy PDF手搓工具 V0.3.1
 # =========================================================
 # 程式歷史摘要：
 # 說明：第一碼或第二碼進版時，本區整併為該碼號的改版重點；
@@ -10,6 +10,7 @@
 #         OCR 外部載入、PyMuPDF/Pillow 載入提示與 Nuitka 資料夾版相容修正。
 # V0.3.0  正式整理版本歷史與發佈結構，保留 V0.2.20 的 Nuitka 資料夾版、
 #         外部 OCR 與 DLL 搜尋路徑修正，根目錄只保留最新版程式入口。
+# V0.3.1  補強 Nuitka exe 相容性，改善 frozen 缺套件提示與 OCR 外掛錯誤訊息。
 #
 # 建議安裝：
 # pip install customtkinter PyMuPDF pillow numpy tkinterdnd2
@@ -39,6 +40,7 @@ from datetime import datetime
 from pathlib import Path
 
 import tkinter as tk
+import tkinter.font  # noqa: F401
 from tkinter import ttk, filedialog, messagebox
 
 
@@ -279,6 +281,19 @@ def run_pip_install(packages: list[str]) -> tuple[bool, str]:
     return True, "\n".join(output_parts)
 
 
+def frozen_missing_package_message(packages: list[str]) -> str:
+    package_text = ", ".join(dict.fromkeys(packages))
+    folders = ", ".join(EXTERNAL_PACKAGE_DIR_NAMES)
+    return (
+        "程式缺少啟動必要套件。\n\n"
+        f"缺少套件：{package_text}\n\n"
+        "此程式目前是 exe 版本，無法用 exe 自己執行 pip install。\n"
+        f"請確認 {folders} 是否與 exe 放在同一資料夾內，"
+        "或重新執行 Nuitka 打包流程補齊外部套件。\n\n"
+        f"詳細紀錄：\n{STARTUP_LOG}"
+    )
+
+
 def customtkinter_module_name() -> str:
     return os.environ.get("GUPPY_CUSTOMTKINTER_MODULE") or "".join(
         ("custom", "tkinter")
@@ -309,6 +324,9 @@ def ensure_required_modules() -> None:
         return
 
     append_startup_log("啟動必要套件缺少：" + ", ".join(missing_packages))
+    if getattr(sys, "frozen", False):
+        raise RuntimeError(frozen_missing_package_message(missing_packages))
+
     ok, pip_output = run_pip_install(missing_packages)
     append_startup_log(pip_output[-4000:])
 
@@ -359,6 +377,13 @@ class LazyImport:
                 package_note = f"套件名稱：{self.pip_name}"
                 if self.module_name == "fitz":
                     package_note = "套件名稱：PyMuPDF；Python 匯入名稱：fitz"
+                if getattr(sys, "frozen", False):
+                    raise RuntimeError(
+                        f"使用此功能需要外部套件。\n"
+                        f"{package_note}\n\n"
+                        "請確認 site-packages 是否與 exe 放在同一資料夾內，"
+                        "或重新執行 Nuitka 打包流程補齊外部套件。"
+                    ) from exc
                 raise RuntimeError(
                     f"使用此功能需要套件。\n"
                     f"{package_note}\n\n"
@@ -408,7 +433,7 @@ warnings.filterwarnings("ignore", message=".*Preferred drawing method.*")
 ctk.set_appearance_mode("light")
 ctk.set_default_color_theme("blue")
 
-APP_VERSION = "0.3.0"
+APP_VERSION = "0.3.1"
 APP_TITLE = f"Guppy PDF手搓工具 V{APP_VERSION}"
 
 BG = "#EEF2F7"
@@ -725,7 +750,7 @@ class OCREngine:
         except Exception as exc:
             errors.append(f"EasyOCR import/init: {exc}")
 
-        self.engine_name = "???OCR"
+        self.engine_name = "未載入OCR"
         self.load_error = "\n".join(errors[-6:])
         self.ready = True
 
@@ -753,10 +778,11 @@ class OCREngine:
 
         if self.engine_name not in ("PaddleOCR", "RapidOCR", "EasyOCR"):
             return (
-                "???? OCR ???\n"
-                "??? OCR ????????????\n\n"
-                "??????? ocr_packages?external_packages ? site-packages ????\n"
-                "??????paddleocr paddlepaddle?? rapidocr-onnxruntime?? easyocr?\n\n"
+                "無法載入 OCR 套件。\n"
+                "請確認 OCR 檔案是否在程式同一資料夾內。\n\n"
+                "請將 OCR 套件放在 ocr_packages、external_packages "
+                "或 site-packages 資料夾。\n"
+                "可使用 rapidocr-onnxruntime、paddleocr+paddlepaddle 或 easyocr。\n\n"
                 + self.load_error[-1200:]
             )
 

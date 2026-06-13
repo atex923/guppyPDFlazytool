@@ -1,5 +1,12 @@
 # Changelog
 
+## V0.3.1
+
+- Explicitly imports `tkinter.font` so Nuitka folder builds include the module needed by externally loaded `customtkinter`.
+- Stops frozen exe builds from trying to run `pip install` through the exe when startup packages are missing.
+- Improves frozen-mode missing-package guidance for external `site-packages`.
+- Restores readable OCR missing-file guidance for `ocr_packages`, `external_packages`, and `site-packages`.
+
 ## V0.3.0
 
 - Promotes the current packaged-ready source line from `V0.2.20` to `V0.3.0`.

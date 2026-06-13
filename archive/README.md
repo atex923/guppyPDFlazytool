@@ -23,11 +23,12 @@ standalone source.
 - `Guppy_PDFlazyTool_V0.2.18.pyw`
 - `Guppy_PDFlazyTool_V0.2.19.pyw`
 - `Guppy_PDFlazyTool_V0.2.20.pyw`
+- `Guppy_PDFlazyTool_V0.3.0.pyw`
 
 ## Legacy Git Snapshots
 
 Older Git files that previously used `V0.3.x` numbering are retained for
-reference in `legacy_git/`, but they are not the canonical current `V0.3.0`
+reference in `legacy_git/`, but they are not the canonical current `V0.3.x`
 release line.
 
 - `legacy_git/Guppy_PDFlazyTool_V0.3.0.pyw`
@@ -37,4 +38,4 @@ release line.
 
 - `../Guppy_PDFlazyTool.py`
 - `../Guppy_PDFlazyTool.pyw`
-- `../Guppy_PDFlazyTool_V0.3.0.pyw`
+- `../Guppy_PDFlazyTool_V0.3.1.pyw`
