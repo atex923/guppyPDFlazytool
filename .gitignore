@@ -1,0 +1,9 @@
+.DS_Store
+__pycache__/
+*.py[cod]
+outputs/
+work/
+pdfname_error_log.txt
+pdfname_startup_log.txt
+pdfname_stdio_log.txt
+PDF浮水印註記工具設定.txt
