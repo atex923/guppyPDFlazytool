@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 # =========================================================
-# Guppy PDF手搓工具 V0.2.20
+# Guppy PDF手搓工具 V0.3.0
 # =========================================================
 # 程式歷史：
 # V0.1.1  建立 Guppy PDF手搓工具，整合更名、搬移、浮水印第三分頁。
@@ -27,6 +27,7 @@
 # V0.2.18  啟動檢查前先加入 exe 旁的外部套件路徑，修正資料夾版匯入。
 # V0.2.19  外部套件路徑同步加入 DLL 搜尋路徑，修正 PyMuPDF/Pillow 載入。
 # V0.2.20  補齊 OCR 外掛常見 DLL 子資料夾搜尋路徑。
+# V0.3.0   整理正式版號與歷史檔案，延續 V0.2.20 的 Nuitka / 外部 OCR 修正。
 #
 # 建議安裝：
 # pip install customtkinter PyMuPDF pillow numpy tkinterdnd2
@@ -425,7 +426,7 @@ warnings.filterwarnings("ignore", message=".*Preferred drawing method.*")
 ctk.set_appearance_mode("light")
 ctk.set_default_color_theme("blue")
 
-APP_VERSION = "0.2.20"
+APP_VERSION = "0.3.0"
 APP_TITLE = f"Guppy PDF手搓工具 V{APP_VERSION}"
 
 BG = "#EEF2F7"

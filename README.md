@@ -2,14 +2,14 @@
 
 `Guppy_PDFlazyTool` is a desktop PDF utility for Windows/macOS Python environments.
 
-Current version: `V0.2.20`
+Current version: `V0.3.0`
 
 ## Latest main program
 
 Use these root-level files for the latest version:
 
 - `Guppy_PDFlazyTool.pyw`: latest no-console desktop launcher
-- `Guppy_PDFlazyTool_V0.2.20.pyw`: versioned standalone no-console source
+- `Guppy_PDFlazyTool_V0.3.0.pyw`: versioned standalone no-console source
 - `Guppy_PDFlazyTool.py`: latest Python source
 
 The root `Guppy_PDFlazyTool.pyw` file is a lightweight no-console launcher
@@ -17,7 +17,10 @@ that imports and runs `Guppy_PDFlazyTool.py`. Keep feature edits in
 `Guppy_PDFlazyTool.py`, then regenerate the versioned `.pyw` for standalone
 delivery.
 
-Older version-numbered full-source files from Git are kept in `archive/`.
+Older version-numbered full-source files are kept in `archive/`. Older Git
+snapshots that used the `V0.3.x` number before this release are kept in
+`archive/legacy_git/` so the current `V0.3.0` release remains the canonical
+version.
 
 OCR engines are loaded externally at runtime. For Nuitka onefile builds, keep
 OCR packages beside the app in `ocr_packages`, `external_packages`, or
@@ -34,7 +37,7 @@ OCR packages beside the app in `ocr_packages`, `external_packages`, or
 
 - `Guppy_PDFlazyTool.py`: stable latest Python source
 - `Guppy_PDFlazyTool.pyw`: stable latest no-console launcher
-- `Guppy_PDFlazyTool_V0.2.20.pyw`: standalone no-console source for V0.2.20
+- `Guppy_PDFlazyTool_V0.3.0.pyw`: standalone no-console source for V0.3.0
 - `archive/`: historical full-source version snapshots moved out of the root
 
 ## Suggested dependencies

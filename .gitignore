@@ -1,8 +1,11 @@
 .DS_Store
+.ruff_cache/
 __pycache__/
 *.py[cod]
+build/
 outputs/
 work/
+nuitka-crash-report.xml
 pdfname_error_log.txt
 pdfname_startup_log.txt
 pdfname_stdio_log.txt

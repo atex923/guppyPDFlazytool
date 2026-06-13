@@ -1,5 +1,12 @@
 # Changelog
 
+## V0.3.0
+
+- Promotes the current packaged-ready source line from `V0.2.20` to `V0.3.0`.
+- Keeps the Nuitka folder-build fixes, external package DLL search paths, and external OCR loading behavior from `V0.2.20`.
+- Reorganizes versioned source history so the root folder contains only the current versioned `.pyw`.
+- Moves older Git snapshots that previously used `V0.3.x` numbering into `archive/legacy_git/`.
+
 ## V0.2.20
 
 - Adds DLL search paths for external OCR packages such as ONNXRuntime, OpenCV, and Shapely.
