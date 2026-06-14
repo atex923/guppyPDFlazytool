@@ -1,5 +1,10 @@
 # Changelog
 
+## V0.3.3
+
+- Speeds up Nuitka compilation by loading `tkinterdnd2` dynamically instead of statically importing it.
+- Adds fast-build guidance and a Windows command file that no-follows large optional OCR/science packages.
+
 ## V0.3.2
 
 - Fixes the first tab preview toolbar on low-resolution displays by separating page/zoom controls from OCR controls.
