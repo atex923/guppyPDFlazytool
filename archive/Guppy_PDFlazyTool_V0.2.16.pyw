@@ -1,18 +1,28 @@
 # -*- coding: utf-8 -*-
 # =========================================================
-# Guppy PDF手搓工具 V0.3.1
+# Guppy PDF手搓工具 V0.2.16
 # =========================================================
-# 程式歷史摘要：
-# 說明：第一碼或第二碼進版時，本區整併為該碼號的改版重點；
-#       細項逐版紀錄保留在 CHANGELOG.md 與 archive/。
-# V0.1.x  建立 Guppy PDF手搓工具，整合 PDF 更名、搬移、浮水印與旋轉工具。
-# V0.2.x  完成四分頁工具整合、版面調整、固定字體/欄位規格、延遲載入、
-#         OCR 外部載入、PyMuPDF/Pillow 載入提示與 Nuitka 資料夾版相容修正。
-# V0.3.0  正式整理版本歷史與發佈結構，保留 V0.2.20 的 Nuitka 資料夾版、
-#         外部 OCR 與 DLL 搜尋路徑修正，根目錄只保留最新版程式入口。
-# V0.3.1  補強 Nuitka exe 相容性，改善 frozen 缺套件提示與 OCR 外掛錯誤訊息。
-# V0.3.2  修正第一分頁低解析度預覽工具列遮蔽，恢復第三分頁 PDF 拖曳開啟。
-# V0.3.3  加速 Nuitka 編譯：拖曳套件改動態載入，補充 no-follow 編譯設定。
+# 程式歷史：
+# V0.1.1  建立 Guppy PDF手搓工具，整合更名、搬移、浮水印第三分頁。
+# V0.1.2  修正浮水印分頁拖曳 PDF，統一前三分頁基礎配色。
+# V0.1.3  整合 PDF旋轉吧 V1.7.1 為第四分頁。
+# V0.2.0  第四分頁改名「旋壓合切」，重新統一四個分頁配色並整理整合程式碼。
+# V0.2.1  移除第四分頁標語，加入四個小功能回復上一動作，統一功能按鈕風格。
+# V0.2.2  第四分頁小工具分頁標籤文字放大。
+# V0.2.3  第三、第四分頁功能按鈕改為與第一分頁一致的圓角按鈕。
+# V0.2.4  修正 customtkinter 字型檔警告輸出，避免 .pyw / exe 啟動時出現 font_shapes 警告。
+# V0.2.5  啟動速度優化：PDF/Pillow/numpy/OCR 改成延遲載入，主視窗先開啟再按功能載入。
+# V0.2.6  修正視窗最大化與拉伸版面：主欄位權重、預覽區、工具列與表格跟隨視窗縮放。
+# V0.2.7  修正第一分頁左下欄位被檔案瀏覽區擠出：左側改用 grid 固定上下區、中央表格彈性伸縮。
+# V0.2.8  OCR 改為外部延遲載入，支援 Nuitka 單檔時從程式旁資料夾載入 OCR 套件。
+# V0.2.9  改善 PyMuPDF / fitz 缺套件提示，避免 Python 版本不同時安裝到錯誤環境。
+# V0.2.10  重新調整低解析度版面，修正 OCR 外部延遲載入與框選辨識流程。
+# V0.2.11  加強低解析度 compact 排版，縮小字體、列高與間距，修正預覽工具列按鈕顯示。
+# V0.2.12  統一分頁字體與欄位高度，整理搬移分頁中文與浮水印分頁布局。
+# V0.2.13  移除動態調整排版與字體功能，固定使用指定字體與欄位尺寸。
+# V0.2.14  整理程式碼格式，簡化空例外處理、未使用參數與保留參照命名，通過 Ruff 檢查。
+# V0.2.15  修正 Nuitka 資料夾版 exe 外部 site-packages 載入順序。
+# V0.2.16  改用動態載入 customtkinter，支援 Nuitka 資料夾版外部套件載入。
 #
 # 建議安裝：
 # pip install customtkinter PyMuPDF pillow numpy tkinterdnd2
@@ -42,7 +52,6 @@ from datetime import datetime
 from pathlib import Path
 
 import tkinter as tk
-import tkinter.font  # noqa: F401
 from tkinter import ttk, filedialog, messagebox
 
 
@@ -63,36 +72,6 @@ BASE_DIR = app_base_dir()
 ERROR_LOG = BASE_DIR / "pdfname_error_log.txt"
 STARTUP_LOG = BASE_DIR / "pdfname_startup_log.txt"
 EXTERNAL_PACKAGE_DIR_NAMES = ("ocr_packages", "external_packages", "site-packages")
-EXTERNAL_DLL_SUBDIRS = (
-    ("PIL",),
-    ("pymupdf",),
-    ("numpy.libs",),
-    ("bin",),
-    ("cv2",),
-    ("onnxruntime", "capi"),
-    ("shapely.libs",),
-)
-DLL_DIRECTORY_HANDLES: list[object] = []
-DLL_DIRECTORY_KEYS: set[str] = set()
-
-
-def add_dll_search_path(path: Path) -> None:
-    if os.name != "nt" or not hasattr(os, "add_dll_directory"):
-        return
-    try:
-        resolved = path.resolve()
-    except Exception:
-        return
-    if not resolved.exists():
-        return
-    key = str(resolved).lower()
-    if key in DLL_DIRECTORY_KEYS:
-        return
-    try:
-        DLL_DIRECTORY_HANDLES.append(os.add_dll_directory(str(resolved)))
-        DLL_DIRECTORY_KEYS.add(key)
-    except Exception:
-        pass
 
 
 def add_external_package_paths() -> list[Path]:
@@ -134,9 +113,6 @@ def add_external_package_paths() -> list[Path]:
         if resolved_text not in sys.path:
             sys.path.insert(0, resolved_text)
             site.addsitedir(resolved_text)
-        add_dll_search_path(resolved)
-        for child_parts in EXTERNAL_DLL_SUBDIRS:
-            add_dll_search_path(resolved.joinpath(*child_parts))
         added.append(resolved)
     return added
 
@@ -283,25 +259,6 @@ def run_pip_install(packages: list[str]) -> tuple[bool, str]:
     return True, "\n".join(output_parts)
 
 
-def frozen_missing_package_message(packages: list[str]) -> str:
-    package_text = ", ".join(dict.fromkeys(packages))
-    folders = ", ".join(EXTERNAL_PACKAGE_DIR_NAMES)
-    return (
-        "程式缺少啟動必要套件。\n\n"
-        f"缺少套件：{package_text}\n\n"
-        "此程式目前是 exe 版本，無法用 exe 自己執行 pip install。\n"
-        f"請確認 {folders} 是否與 exe 放在同一資料夾內，"
-        "或重新執行 Nuitka 打包流程補齊外部套件。\n\n"
-        f"詳細紀錄：\n{STARTUP_LOG}"
-    )
-
-
-def customtkinter_module_name() -> str:
-    return os.environ.get("GUPPY_CUSTOMTKINTER_MODULE") or "".join(
-        ("custom", "tkinter")
-    )
-
-
 def ensure_required_modules() -> None:
     """Only install the light GUI dependency during startup.
 
@@ -312,10 +269,8 @@ def ensure_required_modules() -> None:
     """
     import importlib.util
 
-    add_external_package_paths()
-    ctk_module = customtkinter_module_name()
     required = {
-        ctk_module: ctk_module,
+        "customtkinter": "customtkinter",
     }
     missing_packages = [
         pkg
@@ -326,9 +281,6 @@ def ensure_required_modules() -> None:
         return
 
     append_startup_log("啟動必要套件缺少：" + ", ".join(missing_packages))
-    if getattr(sys, "frozen", False):
-        raise RuntimeError(frozen_missing_package_message(missing_packages))
-
     ok, pip_output = run_pip_install(missing_packages)
     append_startup_log(pip_output[-4000:])
 
@@ -355,7 +307,7 @@ warnings.filterwarnings("ignore", message=".*Preferred drawing method.*")
 
 try:
     ensure_required_modules()
-    ctk = importlib.import_module(customtkinter_module_name())
+    ctk = importlib.import_module("customtkinter")
 except Exception:
     show_startup_error("程式啟動失敗", traceback.format_exc())
     raise SystemExit(1)
@@ -371,7 +323,6 @@ class LazyImport:
 
     def _load(self):
         if self._module is None:
-            add_external_package_paths()
             append_startup_log(f"延遲載入套件：{self.module_name}")
             try:
                 self._module = importlib.import_module(self.module_name)
@@ -379,13 +330,6 @@ class LazyImport:
                 package_note = f"套件名稱：{self.pip_name}"
                 if self.module_name == "fitz":
                     package_note = "套件名稱：PyMuPDF；Python 匯入名稱：fitz"
-                if getattr(sys, "frozen", False):
-                    raise RuntimeError(
-                        f"使用此功能需要外部套件。\n"
-                        f"{package_note}\n\n"
-                        "請確認 site-packages 是否與 exe 放在同一資料夾內，"
-                        "或重新執行 Nuitka 打包流程補齊外部套件。"
-                    ) from exc
                 raise RuntimeError(
                     f"使用此功能需要套件。\n"
                     f"{package_note}\n\n"
@@ -435,7 +379,7 @@ warnings.filterwarnings("ignore", message=".*Preferred drawing method.*")
 ctk.set_appearance_mode("light")
 ctk.set_default_color_theme("blue")
 
-APP_VERSION = "0.3.3"
+APP_VERSION = "0.2.16"
 APP_TITLE = f"Guppy PDF手搓工具 V{APP_VERSION}"
 
 BG = "#EEF2F7"
@@ -752,7 +696,7 @@ class OCREngine:
         except Exception as exc:
             errors.append(f"EasyOCR import/init: {exc}")
 
-        self.engine_name = "未載入OCR"
+        self.engine_name = "???OCR"
         self.load_error = "\n".join(errors[-6:])
         self.ready = True
 
@@ -780,11 +724,10 @@ class OCREngine:
 
         if self.engine_name not in ("PaddleOCR", "RapidOCR", "EasyOCR"):
             return (
-                "無法載入 OCR 套件。\n"
-                "請確認 OCR 檔案是否在程式同一資料夾內。\n\n"
-                "請將 OCR 套件放在 ocr_packages、external_packages "
-                "或 site-packages 資料夾。\n"
-                "可使用 rapidocr-onnxruntime、paddleocr+paddlepaddle 或 easyocr。\n\n"
+                "???? OCR ???\n"
+                "??? OCR ????????????\n\n"
+                "??????? ocr_packages?external_packages ? site-packages ????\n"
+                "??????paddleocr paddlepaddle?? rapidocr-onnxruntime?? easyocr?\n\n"
                 + self.load_error[-1200:]
             )
 
@@ -855,36 +798,20 @@ class OCREngine:
 import tempfile
 from io import BytesIO
 
-# Drag-and-drop is optional and loaded dynamically.  Keeping tkinterdnd2 out of
-# top-level imports prevents Nuitka from statically following it during builds.
-DND_FILES = None
-TkinterDnD = None
-HAS_DND = False
-_DND_LOAD_ATTEMPTED = False
+# Drag-and-drop is optional.  Do not auto-install it at startup because that
+# makes .pyw double-click opening feel slow.  If it is already installed, use it;
+# otherwise the browse buttons still work normally.
+try:
+    from tkinterdnd2 import DND_FILES, TkinterDnD
 
-
-def load_tkinterdnd() -> bool:
-    global DND_FILES, TkinterDnD, HAS_DND, _DND_LOAD_ATTEMPTED
-    if HAS_DND and DND_FILES is not None and TkinterDnD is not None:
-        return True
-    if _DND_LOAD_ATTEMPTED:
-        return False
-
-    _DND_LOAD_ATTEMPTED = True
-    try:
-        module = importlib.import_module("tkinterdnd2")
-        DND_FILES = getattr(module, "DND_FILES")
-        TkinterDnD = getattr(module, "TkinterDnD")
-        HAS_DND = True
-        return True
-    except Exception:
-        DND_FILES = None
-        TkinterDnD = None
-        HAS_DND = False
-        append_startup_log(
-            "未載入 tkinterdnd2，拖曳功能停用；可手動安裝：pip install tkinterdnd2"
-        )
-        return False
+    HAS_DND = True
+except Exception:
+    DND_FILES = None
+    TkinterDnD = None
+    HAS_DND = False
+    append_startup_log(
+        "未載入 tkinterdnd2，拖曳功能停用；可手動安裝：pip install tkinterdnd2"
+    )
 
 WATERMARK_APP_VERSION = "V1.0.8"
 WATERMARK_APP_TITLE = f"PDF浮水印註記工具 {WATERMARK_APP_VERSION}"
@@ -1496,7 +1423,6 @@ class PDFWatermarkApp:
 
         self.build_ui()
         self.setup_drag_drop()
-        self.root.after(250, self.setup_drag_drop)
 
         self.add_message(f"程式已啟動。預設字體大小 {WM_DEFAULT_FONT_SIZE}。")
         if self.dnd_enabled:
@@ -1744,16 +1670,10 @@ class PDFWatermarkApp:
             self.root.after(delay, recenter_once)
 
     def setup_drag_drop(self):
-        if not load_tkinterdnd():
+        if not HAS_DND:
             return
 
-        widgets = [
-            self.root,
-            self.root.winfo_toplevel(),
-            self.main_frame,
-            self.canvas,
-        ]
-        widgets.extend(self._drop_widgets(self.main_frame))
+        widgets = [self.root, self.root.winfo_toplevel(), self.main_frame, self.canvas]
         for widget in dict.fromkeys(widgets):
             try:
                 if not hasattr(widget, "drop_target_register") or not hasattr(
@@ -1765,16 +1685,6 @@ class PDFWatermarkApp:
                 self.dnd_enabled = True
             except Exception:
                 pass
-
-    def _drop_widgets(self, widget):
-        widgets = [widget]
-        try:
-            children = widget.winfo_children()
-        except Exception:
-            children = []
-        for child in children:
-            widgets.extend(self._drop_widgets(child))
-        return widgets
 
     def on_drop_file(self, event):
         files = parse_dropped_files(event.data, self.root)
@@ -2274,7 +2184,7 @@ class BaseTab(ttk.Frame):
         return None
 
     def enable_drop(self, widget, callback):
-        if not load_tkinterdnd() or DND_FILES is None:
+        if DND_FILES is None:
             return
         try:
             if not hasattr(widget, "drop_target_register") or not hasattr(
@@ -3486,7 +3396,6 @@ class PDFRenameTool:
                 self.watermark_page.grid_rowconfigure(0, weight=1)
                 self.watermark_page.grid_columnconfigure(0, weight=1)
                 self.watermark_tab_btn.configure(fg_color=PRIMARY, text_color="white")
-                self.root.after(100, self.watermark_app.setup_drag_drop)
             else:
                 self.turn_page.grid(
                     row=0, column=0, columnspan=3, sticky="nsew", padx=(12, 6), pady=12
@@ -3660,13 +3569,14 @@ class PDFRenameTool:
         bottom.columnconfigure(1, weight=1)
 
     def create_preview_toolbar(self, parent):
-        # 低解析度時分成兩列，先保住翻頁與縮放控制，避免被 OCR 狀態列擠出可視範圍。
+        # 改用 grid 取代固定高度 pack，讓最大化 / 拉伸時工具列可以跟著寬度重新分配。
         bar = tk.Frame(parent, bg=CARD)
         bar.pack(fill="x", pady=(0, 10))
         bar.grid_columnconfigure(0, weight=1)
+        bar.grid_columnconfigure(1, weight=0)
 
         left = tk.Frame(bar, bg=CARD)
-        left.grid(row=0, column=0, sticky="w", padx=10, pady=(8, 3))
+        left.grid(row=0, column=0, sticky="w", padx=10, pady=8)
 
         for text, cmd, width in (
             ("-", self.zoom_out, 44),
@@ -3684,13 +3594,12 @@ class PDFRenameTool:
             self.preview_button(left, text, cmd, 38).pack(side="left", padx=2)
 
         right = tk.Frame(bar, bg=CARD)
-        right.grid(row=1, column=0, sticky="ew", padx=10, pady=(0, 8))
-        right.grid_columnconfigure(0, weight=1)
+        right.grid(row=0, column=1, sticky="e", padx=10, pady=8)
 
         self.ocr_status_var = tk.StringVar(value="OCR：尚未載入")
         tk.Label(
             right, textvariable=self.ocr_status_var, bg=CARD, fg=TEXT, font=FONT
-        ).grid(row=0, column=0, sticky="w", padx=(0, 10))
+        ).pack(side="left", padx=(0, 10))
 
         self.ocr_check = ctk.CTkCheckBox(
             right,
@@ -3699,7 +3608,7 @@ class PDFRenameTool:
             command=self.toggle_ocr_mode,
             font=BTN_FONT,
         )
-        self.ocr_check.grid(row=0, column=1, sticky="e", padx=2)
+        self.ocr_check.pack(side="left", padx=2)
 
     def create_preview_area(self, parent):
         frame = self.card(parent)
@@ -4468,7 +4377,7 @@ class PDFRenameTool:
 # Run
 # =========================================================
 def run_app():
-    if load_tkinterdnd():
+    if HAS_DND:
         try:
             root = TkinterDnD.Tk()
         except Exception:

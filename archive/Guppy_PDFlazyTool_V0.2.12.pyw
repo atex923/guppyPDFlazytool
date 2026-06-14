@@ -1,18 +1,24 @@
 # -*- coding: utf-8 -*-
 # =========================================================
-# Guppy PDF手搓工具 V0.3.1
+# Guppy PDF手搓工具 V0.2.12
 # =========================================================
-# 程式歷史摘要：
-# 說明：第一碼或第二碼進版時，本區整併為該碼號的改版重點；
-#       細項逐版紀錄保留在 CHANGELOG.md 與 archive/。
-# V0.1.x  建立 Guppy PDF手搓工具，整合 PDF 更名、搬移、浮水印與旋轉工具。
-# V0.2.x  完成四分頁工具整合、版面調整、固定字體/欄位規格、延遲載入、
-#         OCR 外部載入、PyMuPDF/Pillow 載入提示與 Nuitka 資料夾版相容修正。
-# V0.3.0  正式整理版本歷史與發佈結構，保留 V0.2.20 的 Nuitka 資料夾版、
-#         外部 OCR 與 DLL 搜尋路徑修正，根目錄只保留最新版程式入口。
-# V0.3.1  補強 Nuitka exe 相容性，改善 frozen 缺套件提示與 OCR 外掛錯誤訊息。
-# V0.3.2  修正第一分頁低解析度預覽工具列遮蔽，恢復第三分頁 PDF 拖曳開啟。
-# V0.3.3  加速 Nuitka 編譯：拖曳套件改動態載入，補充 no-follow 編譯設定。
+# 程式歷史：
+# V0.1.1  建立 Guppy PDF手搓工具，整合更名、搬移、浮水印第三分頁。
+# V0.1.2  修正浮水印分頁拖曳 PDF，統一前三分頁基礎配色。
+# V0.1.3  整合 PDF旋轉吧 V1.7.1 為第四分頁。
+# V0.2.0  第四分頁改名「旋壓合切」，重新統一四個分頁配色並整理整合程式碼。
+# V0.2.1  移除第四分頁標語，加入四個小功能回復上一動作，統一功能按鈕風格。
+# V0.2.2  第四分頁小工具分頁標籤文字放大。
+# V0.2.3  第三、第四分頁功能按鈕改為與第一分頁一致的圓角按鈕。
+# V0.2.4  修正 customtkinter 字型檔警告輸出，避免 .pyw / exe 啟動時出現 font_shapes 警告。
+# V0.2.5  啟動速度優化：PDF/Pillow/numpy/OCR 改成延遲載入，主視窗先開啟再按功能載入。
+# V0.2.6  修正視窗最大化與拉伸版面：主欄位權重、預覽區、工具列與表格跟隨視窗縮放。
+# V0.2.7  修正第一分頁左下欄位被檔案瀏覽區擠出：左側改用 grid 固定上下區、中央表格彈性伸縮。
+# V0.2.8  OCR 改為外部延遲載入，支援 Nuitka 單檔時從程式旁資料夾載入 OCR 套件。
+# V0.2.9  改善 PyMuPDF / fitz 缺套件提示，避免 Python 版本不同時安裝到錯誤環境。
+# V0.2.10  重新調整低解析度版面，修正 OCR 外部延遲載入與框選辨識流程。
+# V0.2.11  加強低解析度 compact 排版，縮小字體、列高與間距，修正預覽工具列按鈕顯示。
+# V0.2.12  統一分頁字體與欄位高度，整理搬移分頁中文與浮水印分頁布局。
 #
 # 建議安裝：
 # pip install customtkinter PyMuPDF pillow numpy tkinterdnd2
@@ -36,13 +42,11 @@ import importlib
 import site
 import threading
 import time
-from contextlib import suppress
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
 import tkinter as tk
-import tkinter.font  # noqa: F401
 from tkinter import ttk, filedialog, messagebox
 
 
@@ -63,36 +67,6 @@ BASE_DIR = app_base_dir()
 ERROR_LOG = BASE_DIR / "pdfname_error_log.txt"
 STARTUP_LOG = BASE_DIR / "pdfname_startup_log.txt"
 EXTERNAL_PACKAGE_DIR_NAMES = ("ocr_packages", "external_packages", "site-packages")
-EXTERNAL_DLL_SUBDIRS = (
-    ("PIL",),
-    ("pymupdf",),
-    ("numpy.libs",),
-    ("bin",),
-    ("cv2",),
-    ("onnxruntime", "capi"),
-    ("shapely.libs",),
-)
-DLL_DIRECTORY_HANDLES: list[object] = []
-DLL_DIRECTORY_KEYS: set[str] = set()
-
-
-def add_dll_search_path(path: Path) -> None:
-    if os.name != "nt" or not hasattr(os, "add_dll_directory"):
-        return
-    try:
-        resolved = path.resolve()
-    except Exception:
-        return
-    if not resolved.exists():
-        return
-    key = str(resolved).lower()
-    if key in DLL_DIRECTORY_KEYS:
-        return
-    try:
-        DLL_DIRECTORY_HANDLES.append(os.add_dll_directory(str(resolved)))
-        DLL_DIRECTORY_KEYS.add(key)
-    except Exception:
-        pass
 
 
 def add_external_package_paths() -> list[Path]:
@@ -103,10 +77,14 @@ def add_external_package_paths() -> list[Path]:
     ocr_packages, external_packages, or site-packages.
     """
     roots: list[Path] = []
-    with suppress(Exception):
+    try:
         roots.append(Path(sys.executable).resolve().parent)
-    with suppress(Exception):
+    except Exception:
+        pass
+    try:
         roots.append(Path(__file__).resolve().parent)
+    except Exception:
+        pass
     roots.append(BASE_DIR)
 
     env_paths = []
@@ -130,20 +108,17 @@ def add_external_package_paths() -> list[Path]:
         if key in seen or not resolved.exists():
             continue
         seen.add(key)
-        resolved_text = str(resolved)
-        if resolved_text not in sys.path:
-            sys.path.insert(0, resolved_text)
-            site.addsitedir(resolved_text)
-        add_dll_search_path(resolved)
-        for child_parts in EXTERNAL_DLL_SUBDIRS:
-            add_dll_search_path(resolved.joinpath(*child_parts))
+        if str(resolved) not in sys.path:
+            site.addsitedir(str(resolved))
         added.append(resolved)
     return added
 
 
 def write_log(path: Path, text: str) -> None:
-    with suppress(Exception):
+    try:
         path.write_text(text, encoding="utf-8")
+    except Exception:
+        pass
 
 
 def append_startup_log(text: str) -> None:
@@ -164,22 +139,17 @@ def install_safe_stdio_for_pyw() -> None:
     global _PYW_STDIO_LOG_HANDLE
     try:
         if getattr(sys, "stdout", None) is None or getattr(sys, "stderr", None) is None:
-            _PYW_STDIO_LOG_HANDLE = (BASE_DIR / "pdfname_stdio_log.txt").open(
-                "a", encoding="utf-8", buffering=1
-            )
+            _PYW_STDIO_LOG_HANDLE = (BASE_DIR / "pdfname_stdio_log.txt").open("a", encoding="utf-8", buffering=1)
             if getattr(sys, "stdout", None) is None:
                 sys.stdout = _PYW_STDIO_LOG_HANDLE
             if getattr(sys, "stderr", None) is None:
                 sys.stderr = _PYW_STDIO_LOG_HANDLE
     except Exception:
-
         class _NullWriter:
             def write(self, *_args, **_kwargs):
                 return 0
-
             def flush(self):
                 return None
-
         if getattr(sys, "stdout", None) is None:
             sys.stdout = _NullWriter()
         if getattr(sys, "stderr", None) is None:
@@ -227,9 +197,7 @@ def suppress_customtkinter_font_warning_output() -> None:
     while traceback and normal errors still pass through.
     """
     try:
-        if getattr(sys, "stderr", None) is not None and not isinstance(
-            sys.stderr, _FilteredCustomTkinterWarningWriter
-        ):
+        if getattr(sys, "stderr", None) is not None and not isinstance(sys.stderr, _FilteredCustomTkinterWarningWriter):
             sys.stderr = _FilteredCustomTkinterWarningWriter(sys.stderr)
     except Exception:
         pass
@@ -283,25 +251,6 @@ def run_pip_install(packages: list[str]) -> tuple[bool, str]:
     return True, "\n".join(output_parts)
 
 
-def frozen_missing_package_message(packages: list[str]) -> str:
-    package_text = ", ".join(dict.fromkeys(packages))
-    folders = ", ".join(EXTERNAL_PACKAGE_DIR_NAMES)
-    return (
-        "程式缺少啟動必要套件。\n\n"
-        f"缺少套件：{package_text}\n\n"
-        "此程式目前是 exe 版本，無法用 exe 自己執行 pip install。\n"
-        f"請確認 {folders} 是否與 exe 放在同一資料夾內，"
-        "或重新執行 Nuitka 打包流程補齊外部套件。\n\n"
-        f"詳細紀錄：\n{STARTUP_LOG}"
-    )
-
-
-def customtkinter_module_name() -> str:
-    return os.environ.get("GUPPY_CUSTOMTKINTER_MODULE") or "".join(
-        ("custom", "tkinter")
-    )
-
-
 def ensure_required_modules() -> None:
     """Only install the light GUI dependency during startup.
 
@@ -312,39 +261,25 @@ def ensure_required_modules() -> None:
     """
     import importlib.util
 
-    add_external_package_paths()
-    ctk_module = customtkinter_module_name()
     required = {
-        ctk_module: ctk_module,
+        "customtkinter": "customtkinter",
     }
-    missing_packages = [
-        pkg
-        for module, pkg in required.items()
-        if importlib.util.find_spec(module) is None
-    ]
+    missing_packages = [pkg for module, pkg in required.items() if importlib.util.find_spec(module) is None]
     if not missing_packages:
         return
 
     append_startup_log("啟動必要套件缺少：" + ", ".join(missing_packages))
-    if getattr(sys, "frozen", False):
-        raise RuntimeError(frozen_missing_package_message(missing_packages))
-
     ok, pip_output = run_pip_install(missing_packages)
     append_startup_log(pip_output[-4000:])
 
-    still_missing = [
-        pkg
-        for module, pkg in required.items()
-        if importlib.util.find_spec(module) is None
-    ]
+    still_missing = [pkg for module, pkg in required.items() if importlib.util.find_spec(module) is None]
     if not ok or still_missing:
-        install_cmd = f'"{sys.executable}" -m pip install ' + " ".join(
-            still_missing or missing_packages
-        )
+        install_cmd = f'"{sys.executable}" -m pip install ' + " ".join(still_missing or missing_packages)
         raise RuntimeError(
             "程式缺少啟動必要套件，且自動安裝失敗。\n\n"
             f"請手動執行：\n{install_cmd}\n\n"
-            f"詳細紀錄：\n{STARTUP_LOG}\n\n" + pip_output[-2500:]
+            f"詳細紀錄：\n{STARTUP_LOG}\n\n"
+            + pip_output[-2500:]
         )
 
 
@@ -355,7 +290,7 @@ warnings.filterwarnings("ignore", message=".*Preferred drawing method.*")
 
 try:
     ensure_required_modules()
-    ctk = importlib.import_module(customtkinter_module_name())
+    import customtkinter as ctk
 except Exception:
     show_startup_error("程式啟動失敗", traceback.format_exc())
     raise SystemExit(1)
@@ -371,7 +306,6 @@ class LazyImport:
 
     def _load(self):
         if self._module is None:
-            add_external_package_paths()
             append_startup_log(f"延遲載入套件：{self.module_name}")
             try:
                 self._module = importlib.import_module(self.module_name)
@@ -379,13 +313,6 @@ class LazyImport:
                 package_note = f"套件名稱：{self.pip_name}"
                 if self.module_name == "fitz":
                     package_note = "套件名稱：PyMuPDF；Python 匯入名稱：fitz"
-                if getattr(sys, "frozen", False):
-                    raise RuntimeError(
-                        f"使用此功能需要外部套件。\n"
-                        f"{package_note}\n\n"
-                        "請確認 site-packages 是否與 exe 放在同一資料夾內，"
-                        "或重新執行 Nuitka 打包流程補齊外部套件。"
-                    ) from exc
                 raise RuntimeError(
                     f"使用此功能需要套件。\n"
                     f"{package_note}\n\n"
@@ -435,7 +362,7 @@ warnings.filterwarnings("ignore", message=".*Preferred drawing method.*")
 ctk.set_appearance_mode("light")
 ctk.set_default_color_theme("blue")
 
-APP_VERSION = "0.3.3"
+APP_VERSION = "0.2.12"
 APP_TITLE = f"Guppy PDF手搓工具 V{APP_VERSION}"
 
 BG = "#EEF2F7"
@@ -502,7 +429,6 @@ def rounded_button(parent, text, command, width=None, accent=False):
         border_width=0 if accent else 1,
         border_color=PREVIEW_BORDER,
     )
-
 
 IMAGE_OFFSET = 20
 MIN_ZOOM = 0.2
@@ -588,7 +514,8 @@ def toggle_sort(current_column: str, reverse: bool, column: str):
 
 def safe_pdf_filename(filename: str) -> str:
     filename = re.sub(r'[\\/:*?"<>|]', "", filename)
-    return re.sub(r"\s+", " ", filename).strip()
+    filename = re.sub(r"\s+", " ", filename).strip()
+    return filename
 
 
 def list_pdf_files(folder: str, sort_column: str, reverse: bool):
@@ -607,11 +534,7 @@ def list_pdf_files(folder: str, sort_column: str, reverse: bool):
             except OSError:
                 continue
 
-    key = (
-        (lambda item: item[0].lower())
-        if sort_column == "filename"
-        else (lambda item: item[1])
-    )
+    key = (lambda item: item[0].lower()) if sort_column == "filename" else (lambda item: item[1])
     return sorted(result, key=key, reverse=reverse)
 
 
@@ -652,16 +575,14 @@ def list_directory_items(folder: str, sort_column: str, reverse: bool):
         try:
             stat = path.stat()
             is_dir = path.is_dir()
-            result.append(
-                {
-                    "name": path.name,
-                    "path": str(path),
-                    "is_dir": is_dir,
-                    "size": 0 if is_dir else stat.st_size,
-                    "created": get_file_added_time(path, stat),
-                    "modified": stat.st_mtime,
-                }
-            )
+            result.append({
+                "name": path.name,
+                "path": str(path),
+                "is_dir": is_dir,
+                "size": 0 if is_dir else stat.st_size,
+                "created": get_file_added_time(path, stat),
+                "modified": stat.st_mtime,
+            })
         except OSError:
             continue
 
@@ -674,12 +595,8 @@ def list_directory_items(folder: str, sort_column: str, reverse: bool):
             return (item["modified"], item["name"].lower())
         return item["name"].lower()
 
-    folders = sorted(
-        (item for item in result if item["is_dir"]), key=item_key, reverse=reverse
-    )
-    files = sorted(
-        (item for item in result if not item["is_dir"]), key=item_key, reverse=reverse
-    )
+    folders = sorted((item for item in result if item["is_dir"]), key=item_key, reverse=reverse)
+    files = sorted((item for item in result if not item["is_dir"]), key=item_key, reverse=reverse)
     return folders + files
 
 
@@ -715,9 +632,7 @@ class OCREngine:
         # OCR engines are optional external packages. Nuitka onefile builds
         # should leave them beside the exe instead of bundling them inside.
         try:
-            RapidOCR = getattr(
-                self._external_import("rapidocr_onnxruntime"), "RapidOCR"
-            )
+            RapidOCR = getattr(self._external_import("rapidocr_onnxruntime"), "RapidOCR")
             self.rapidocr = RapidOCR()
             self.engine_name = "RapidOCR"
             self.ready = True
@@ -752,7 +667,7 @@ class OCREngine:
         except Exception as exc:
             errors.append(f"EasyOCR import/init: {exc}")
 
-        self.engine_name = "未載入OCR"
+        self.engine_name = "???OCR"
         self.load_error = "\n".join(errors[-6:])
         self.ready = True
 
@@ -764,9 +679,7 @@ class OCREngine:
         w, h = img.size
 
         if max(w, h) < 1200:
-            img = img.resize(
-                (w * 2, h * 2), getattr(Image, "Resampling", Image).LANCZOS
-            )
+            img = img.resize((w * 2, h * 2), getattr(Image, 'Resampling', Image).LANCZOS)
 
         img = ImageEnhance.Contrast(img).enhance(1.55)
         img = ImageEnhance.Sharpness(img).enhance(1.8)
@@ -780,11 +693,10 @@ class OCREngine:
 
         if self.engine_name not in ("PaddleOCR", "RapidOCR", "EasyOCR"):
             return (
-                "無法載入 OCR 套件。\n"
-                "請確認 OCR 檔案是否在程式同一資料夾內。\n\n"
-                "請將 OCR 套件放在 ocr_packages、external_packages "
-                "或 site-packages 資料夾。\n"
-                "可使用 rapidocr-onnxruntime、paddleocr+paddlepaddle 或 easyocr。\n\n"
+                "???? OCR ???\n"
+                "??? OCR ????????????\n\n"
+                "??????? ocr_packages?external_packages ? site-packages ????\n"
+                "??????paddleocr paddlepaddle?? rapidocr-onnxruntime?? easyocr?\n\n"
                 + self.load_error[-1200:]
             )
 
@@ -803,9 +715,7 @@ class OCREngine:
 
             if self.engine_name == "RapidOCR":
                 result, _ = self.rapidocr(arr)
-                return "\n".join(
-                    str(item[1]) for item in result or [] if len(item) >= 2
-                ).strip()
+                return "\n".join(str(item[1]) for item in result or [] if len(item) >= 2).strip()
 
             if self.engine_name == "EasyOCR":
                 result = self.easyocr_reader.readtext(arr, detail=0, paragraph=True)
@@ -817,8 +727,10 @@ class OCREngine:
         finally:
             del arr
             if processed_img is not None and processed_img is not img:
-                with suppress(Exception):
+                try:
                     processed_img.close()
+                except Exception:
+                    pass
             gc.collect()
 
         return ""
@@ -855,36 +767,17 @@ class OCREngine:
 import tempfile
 from io import BytesIO
 
-# Drag-and-drop is optional and loaded dynamically.  Keeping tkinterdnd2 out of
-# top-level imports prevents Nuitka from statically following it during builds.
-DND_FILES = None
-TkinterDnD = None
-HAS_DND = False
-_DND_LOAD_ATTEMPTED = False
-
-
-def load_tkinterdnd() -> bool:
-    global DND_FILES, TkinterDnD, HAS_DND, _DND_LOAD_ATTEMPTED
-    if HAS_DND and DND_FILES is not None and TkinterDnD is not None:
-        return True
-    if _DND_LOAD_ATTEMPTED:
-        return False
-
-    _DND_LOAD_ATTEMPTED = True
-    try:
-        module = importlib.import_module("tkinterdnd2")
-        DND_FILES = getattr(module, "DND_FILES")
-        TkinterDnD = getattr(module, "TkinterDnD")
-        HAS_DND = True
-        return True
-    except Exception:
-        DND_FILES = None
-        TkinterDnD = None
-        HAS_DND = False
-        append_startup_log(
-            "未載入 tkinterdnd2，拖曳功能停用；可手動安裝：pip install tkinterdnd2"
-        )
-        return False
+# Drag-and-drop is optional.  Do not auto-install it at startup because that
+# makes .pyw double-click opening feel slow.  If it is already installed, use it;
+# otherwise the browse buttons still work normally.
+try:
+    from tkinterdnd2 import DND_FILES, TkinterDnD
+    HAS_DND = True
+except Exception:
+    DND_FILES = None
+    TkinterDnD = None
+    HAS_DND = False
+    append_startup_log("未載入 tkinterdnd2，拖曳功能停用；可手動安裝：pip install tkinterdnd2")
 
 WATERMARK_APP_VERSION = "V1.0.8"
 WATERMARK_APP_TITLE = f"PDF浮水印註記工具 {WATERMARK_APP_VERSION}"
@@ -942,8 +835,7 @@ def ensure_packages(require_numpy: bool = False):
             "使用此功能缺少必要套件：\n\n"
             + "\n".join(dict.fromkeys(missing))
             + "\n\n請執行：\n"
-            + f'"{sys.executable}" -m pip install '
-            + pkgs,
+            + f'"{sys.executable}" -m pip install ' + pkgs
         )
         return False
     return True
@@ -992,36 +884,30 @@ def find_cjk_font_file():
     if sys.platform.startswith("win"):
         windir = os.environ.get("WINDIR", r"C:\Windows")
         fonts_dir = Path(windir) / "Fonts"
-        candidates.extend(
-            [
-                fonts_dir / "msjh.ttc",  # 微軟正黑體
-                fonts_dir / "msjhbd.ttc",  # 微軟正黑體粗體
-                fonts_dir / "mingliu.ttc",  # 細明體
-                fonts_dir / "kaiu.ttf",  # 標楷體
-                fonts_dir / "simsun.ttc",
-                fonts_dir / "simhei.ttf",
-            ]
-        )
+        candidates.extend([
+            fonts_dir / "msjh.ttc",        # 微軟正黑體
+            fonts_dir / "msjhbd.ttc",      # 微軟正黑體粗體
+            fonts_dir / "mingliu.ttc",     # 細明體
+            fonts_dir / "kaiu.ttf",        # 標楷體
+            fonts_dir / "simsun.ttc",
+            fonts_dir / "simhei.ttf",
+        ])
 
     elif sys.platform == "darwin":
-        candidates.extend(
-            [
-                Path("/System/Library/Fonts/PingFang.ttc"),
-                Path("/System/Library/Fonts/STHeiti Light.ttc"),
-                Path("/Library/Fonts/Arial Unicode.ttf"),
-            ]
-        )
+        candidates.extend([
+            Path("/System/Library/Fonts/PingFang.ttc"),
+            Path("/System/Library/Fonts/STHeiti Light.ttc"),
+            Path("/Library/Fonts/Arial Unicode.ttf"),
+        ])
 
     else:
-        candidates.extend(
-            [
-                Path("/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc"),
-                Path("/usr/share/fonts/opentype/noto/NotoSansCJKtc-Regular.otf"),
-                Path("/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc"),
-                Path("/usr/share/fonts/truetype/wqy/wqy-microhei.ttc"),
-                Path("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"),
-            ]
-        )
+        candidates.extend([
+            Path("/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc"),
+            Path("/usr/share/fonts/opentype/noto/NotoSansCJKtc-Regular.otf"),
+            Path("/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc"),
+            Path("/usr/share/fonts/truetype/wqy/wqy-microhei.ttc"),
+            Path("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"),
+        ])
 
     for path in candidates:
         if path.exists():
@@ -1113,14 +999,7 @@ def layout_text_lines(text, font, max_width, max_height=None, line_gap=2):
     return visible_lines
 
 
-def make_watermark_png_bytes(
-    text,
-    width_px,
-    height_px,
-    font_size_px,
-    font_file=None,
-    color=WM_WATERMARK_RGBA_COLOR,
-):
+def make_watermark_png_bytes(text, width_px, height_px, font_size_px, font_file=None, color=WM_WATERMARK_RGBA_COLOR):
     """
     將文字窗格轉成透明背景 PNG。
     回傳 PNG bytes。
@@ -1188,7 +1067,7 @@ class SmoothWatermarkBox:
             width=2,
             fill="#ffffff",
             stipple="gray12",
-            tags=("watermark_box",),
+            tags=("watermark_box",)
         )
         self.text_id = self.canvas.create_text(
             self.x + 6,
@@ -1197,7 +1076,7 @@ class SmoothWatermarkBox:
             anchor="nw",
             fill=WM_WATERMARK_HEX_COLOR,
             font=("Microsoft JhengHei", self.font_size, "bold"),
-            tags=("watermark_box",),
+            tags=("watermark_box",)
         )
         self.handles = {}
         self._create_handles()
@@ -1208,10 +1087,10 @@ class SmoothWatermarkBox:
 
     def _create_handles(self):
         handle_defs = {
-            "n": "sb_v_double_arrow",
-            "s": "sb_v_double_arrow",
-            "e": "sb_h_double_arrow",
-            "w": "sb_h_double_arrow",
+            "n":  "sb_v_double_arrow",
+            "s":  "sb_v_double_arrow",
+            "e":  "sb_h_double_arrow",
+            "w":  "sb_h_double_arrow",
             "nw": "size_nw_se",
             "se": "size_nw_se",
             "ne": "size_ne_sw",
@@ -1226,11 +1105,9 @@ class SmoothWatermarkBox:
                 self.HANDLE_SIZE,
                 fill=WM_WATERMARK_HEX_COLOR,
                 outline=WM_WATERMARK_HEX_COLOR,
-                tags=("watermark_handle",),
+                tags=("watermark_handle",)
             )
-            self.canvas.tag_bind(
-                handle_id, "<ButtonPress-1>", lambda e, n=name: self.start_resize(e, n)
-            )
+            self.canvas.tag_bind(handle_id, "<ButtonPress-1>", lambda e, n=name: self.start_resize(e, n))
             self.canvas.tag_bind(handle_id, "<B1-Motion>", self.resize)
             self.canvas.tag_bind(handle_id, "<ButtonRelease-1>", self.stop_action)
             self.handles[name] = handle_id
@@ -1250,9 +1127,7 @@ class SmoothWatermarkBox:
 
     def set_font_size(self, size):
         self.font_size = int(size)
-        self.canvas.itemconfigure(
-            self.text_id, font=("Microsoft JhengHei", self.font_size, "bold")
-        )
+        self.canvas.itemconfigure(self.text_id, font=("Microsoft JhengHei", self.font_size, "bold"))
         self.refresh_text_layout()
 
     def preview_padding(self):
@@ -1266,18 +1141,14 @@ class SmoothWatermarkBox:
         line_gap = max(2, int(self.font_size * 0.25))
         max_text_width = max(10, self.width - padding_x * 2)
         max_text_height = max(1, self.height - padding_y * 2)
-        lines = layout_text_lines(
-            self.text, font, max_text_width, max_text_height, line_gap
-        )
+        lines = layout_text_lines(self.text, font, max_text_width, max_text_height, line_gap)
         return "\n".join(lines)
 
     def refresh_text_layout(self):
         self.canvas.itemconfigure(self.text_id, text=self.preview_text())
 
     def page_size(self):
-        return max(1, int(self.app.page_image_width)), max(
-            1, int(self.app.page_image_height)
-        )
+        return max(1, int(self.app.page_image_width)), max(1, int(self.app.page_image_height))
 
     def fit_inside_page(self):
         page_w, page_h = self.page_size()
@@ -1402,7 +1273,7 @@ class SmoothWatermarkBox:
         self._apply_geometry()
         return "break"
 
-    def stop_action(self, _event=None):
+    def stop_action(self, event=None):
         self.active_mode = None
         self.start_mouse = None
         self.start_geom = None
@@ -1417,15 +1288,11 @@ class SmoothWatermarkBox:
 
     def _apply_geometry(self):
         padding_x, padding_y = self.preview_padding()
-        self.canvas.coords(
-            self.box_id, self.x, self.y, self.x + self.width, self.y + self.height
-        )
+        self.canvas.coords(self.box_id, self.x, self.y, self.x + self.width, self.y + self.height)
         self.canvas.coords(self.text_id, self.x + padding_x, self.y + padding_y)
         self.refresh_text_layout()
         self.update_handles()
-        self.canvas.configure(
-            scrollregion=(0, 0, self.app.page_image_width, self.app.page_image_height)
-        )
+        self.canvas.configure(scrollregion=(0, 0, self.app.page_image_width, self.app.page_image_height))
 
     def update_handles(self):
         hs = self.HANDLE_SIZE
@@ -1433,13 +1300,13 @@ class SmoothWatermarkBox:
 
         positions = {
             "nw": (self.x - half, self.y - half),
-            "n": (self.x + self.width / 2 - half, self.y - half),
+            "n":  (self.x + self.width / 2 - half, self.y - half),
             "ne": (self.x + self.width - half, self.y - half),
-            "e": (self.x + self.width - half, self.y + self.height / 2 - half),
+            "e":  (self.x + self.width - half, self.y + self.height / 2 - half),
             "se": (self.x + self.width - half, self.y + self.height - half),
-            "s": (self.x + self.width / 2 - half, self.y + self.height - half),
+            "s":  (self.x + self.width / 2 - half, self.y + self.height - half),
             "sw": (self.x - half, self.y + self.height - half),
-            "w": (self.x - half, self.y + self.height / 2 - half),
+            "w":  (self.x - half, self.y + self.height / 2 - half),
         }
 
         self.canvas.tag_raise(self.box_id)
@@ -1464,7 +1331,7 @@ class SmoothWatermarkBox:
             self.x / scale,
             self.y / scale,
             (self.x + self.width) / scale,
-            (self.y + self.height) / scale,
+            (self.y + self.height) / scale
         )
 
 
@@ -1496,21 +1363,16 @@ class PDFWatermarkApp:
 
         self.build_ui()
         self.setup_drag_drop()
-        self.root.after(250, self.setup_drag_drop)
 
         self.add_message(f"程式已啟動。預設字體大小 {WM_DEFAULT_FONT_SIZE}。")
         if self.dnd_enabled:
             self.add_message("拖曳開啟功能已啟用。")
         else:
-            self.add_message(
-                "拖曳開啟功能未啟用，若需要請安裝：pip install tkinterdnd2"
-            )
+            self.add_message("拖曳開啟功能未啟用，若需要請安裝：pip install tkinterdnd2")
         if self.cjk_font_file:
             self.add_message(f"偵測到中文字型：{self.cjk_font_file}")
         else:
-            self.add_message(
-                "未偵測到系統中文字型檔，會使用 Pillow 預設字型，中文可能無法正常顯示。"
-            )
+            self.add_message("未偵測到系統中文字型檔，會使用 Pillow 預設字型，中文可能無法正常顯示。")
         self.add_message(f"已載入預設字串：{self.default_note_template}")
 
     def settings_path(self):
@@ -1552,9 +1414,7 @@ class PDFWatermarkApp:
         self.main_frame.rowconfigure(1, weight=1)
         self.main_frame.columnconfigure(0, weight=1)
 
-        top = ttk.LabelFrame(
-            self.main_frame, text="PDF浮水印註記", padding=6, style="App.TLabelframe"
-        )
+        top = ttk.LabelFrame(self.main_frame, text="PDF浮水印註記", padding=6, style="App.TLabelframe")
         top.grid(row=0, column=0, sticky="ew")
         top.columnconfigure(1, weight=1)
         top.columnconfigure(3, weight=1)
@@ -1564,49 +1424,29 @@ class PDFWatermarkApp:
         row1.columnconfigure(1, weight=1)
         row1.columnconfigure(3, weight=1)
 
-        ttk.Label(row1, text="輸入註記文字", style="Card.TLabel").grid(
-            row=0, column=0, sticky="w", padx=(0, 4), pady=1
-        )
+        ttk.Label(row1, text="輸入註記文字", style="Card.TLabel").grid(row=0, column=0, sticky="w", padx=(0, 4), pady=1)
         self.note_var = tk.StringVar()
         self.note_entry = ttk.Entry(row1, textvariable=self.note_var, font=FONT)
         self.note_entry.grid(row=0, column=1, sticky="ew", padx=(0, 8), pady=1)
 
-        ttk.Label(row1, text="預設字串", style="Card.TLabel").grid(
-            row=0, column=2, sticky="w", padx=(0, 4), pady=1
-        )
+        ttk.Label(row1, text="預設字串", style="Card.TLabel").grid(row=0, column=2, sticky="w", padx=(0, 4), pady=1)
         self.default_template_var = tk.StringVar(value=self.default_note_template)
-        self.default_template_entry = ttk.Entry(
-            row1, textvariable=self.default_template_var, font=FONT
-        )
-        self.default_template_entry.grid(
-            row=0, column=3, sticky="ew", padx=(0, 8), pady=1
-        )
+        self.default_template_entry = ttk.Entry(row1, textvariable=self.default_template_var, font=FONT)
+        self.default_template_entry.grid(row=0, column=3, sticky="ew", padx=(0, 8), pady=1)
 
-        rounded_button(
-            row1, "作為預設", self.save_default_note_template, width=88, accent=True
-        ).grid(row=0, column=4, padx=2, pady=1)
-        rounded_button(
-            row1, "開啟PDF", self.open_pdf_dialog, width=88, accent=True
-        ).grid(row=0, column=5, padx=2, pady=1)
+        rounded_button(row1, "作為預設", self.save_default_note_template, width=88, accent=True).grid(row=0, column=4, padx=2, pady=1)
+        rounded_button(row1, "開啟PDF", self.open_pdf_dialog, width=88, accent=True).grid(row=0, column=5, padx=2, pady=1)
 
         row2 = ttk.Frame(top, style="Card.TFrame")
         row2.grid(row=1, column=0, columnspan=8, sticky="ew", pady=1)
 
-        rounded_button(
-            row2, "確認插入", self.confirm_insert, width=88, accent=True
-        ).pack(side="left", padx=2)
-        ttk.Label(row2, text="PDF縮放", style="Card.TLabel").pack(
-            side="left", padx=(10, 3)
-        )
+        rounded_button(row2, "確認插入", self.confirm_insert, width=88, accent=True).pack(side="left", padx=2)
+        ttk.Label(row2, text="PDF縮放", style="Card.TLabel").pack(side="left", padx=(10, 3))
         rounded_button(row2, "-", self.zoom_out, width=38).pack(side="left", padx=1)
         rounded_button(row2, "+", self.zoom_in, width=38).pack(side="left", padx=1)
-        rounded_button(row2, "適頁", self.fit_page_width, width=52).pack(
-            side="left", padx=1
-        )
+        rounded_button(row2, "適頁", self.fit_page_width, width=52).pack(side="left", padx=1)
 
-        ttk.Label(row2, text="字體大小", style="Card.TLabel").pack(
-            side="left", padx=(10, 3)
-        )
+        ttk.Label(row2, text="字體大小", style="Card.TLabel").pack(side="left", padx=(10, 3))
         self.font_size_var = tk.IntVar(value=WM_DEFAULT_FONT_SIZE)
         self.font_size_spin = ttk.Spinbox(
             row2,
@@ -1619,36 +1459,24 @@ class PDFWatermarkApp:
             font=FONT,
         )
         self.font_size_spin.pack(side="left", padx=2)
-        self.font_size_spin.bind("<Return>", lambda _event: self.apply_font_size())
-        self.font_size_spin.bind("<FocusOut>", lambda _event: self.apply_font_size())
-        rounded_button(row2, "-", lambda: self.change_font_size(-1), width=38).pack(
-            side="left", padx=1
-        )
-        rounded_button(row2, "+", lambda: self.change_font_size(1), width=38).pack(
-            side="left", padx=1
-        )
+        self.font_size_spin.bind("<Return>", lambda e: self.apply_font_size())
+        self.font_size_spin.bind("<FocusOut>", lambda e: self.apply_font_size())
+        rounded_button(row2, "-", lambda: self.change_font_size(-1), width=38).pack(side="left", padx=1)
+        rounded_button(row2, "+", lambda: self.change_font_size(1), width=38).pack(side="left", padx=1)
 
-        rounded_button(row2, "儲存", self.save_pdf, width=70, accent=True).pack(
-            side="left", padx=(10, 2)
-        )
+        rounded_button(row2, "儲存", self.save_pdf, width=70, accent=True).pack(side="left", padx=(10, 2))
         rounded_button(row2, "列印", self.print_pdf, width=70).pack(side="left", padx=2)
 
         self.page_label = ttk.Label(row2, text="尚未開啟 PDF", style="Card.TLabel")
         self.page_label.pack(side="left", padx=(10, 4))
-        self.status_label = ttk.Label(
-            row2, text="請開啟 PDF 檔案", style="Muted.TLabel"
-        )
+        self.status_label = ttk.Label(row2, text="請開啟 PDF 檔案", style="Muted.TLabel")
         self.status_label.pack(side="left", padx=4)
 
         self.paned = ttk.PanedWindow(self.main_frame, orient="vertical")
         self.paned.grid(row=1, column=0, sticky="nsew", pady=(6, 0))
 
-        preview = ttk.LabelFrame(
-            self.paned, text="PDF預覽", padding=4, style="App.TLabelframe"
-        )
-        message_frame = ttk.LabelFrame(
-            self.paned, text="訊息列表", padding=3, style="App.TLabelframe"
-        )
+        preview = ttk.LabelFrame(self.paned, text="PDF預覽", padding=4, style="App.TLabelframe")
+        message_frame = ttk.LabelFrame(self.paned, text="訊息列表", padding=3, style="App.TLabelframe")
         message_frame.configure(height=72)
         message_frame.grid_propagate(False)
 
@@ -1685,9 +1513,7 @@ class PDFWatermarkApp:
         )
         self.message_list.grid(row=0, column=0, sticky="nsew")
 
-        msg_vbar = ttk.Scrollbar(
-            message_frame, orient="vertical", command=self.message_list.yview
-        )
+        msg_vbar = ttk.Scrollbar(message_frame, orient="vertical", command=self.message_list.yview)
         msg_vbar.grid(row=0, column=1, sticky="ns")
         self.message_list.configure(yscrollcommand=msg_vbar.set)
 
@@ -1697,8 +1523,10 @@ class PDFWatermarkApp:
         self.status_label.config(text=text)
 
     def get_visible_area(self):
-        with suppress(Exception):
+        try:
             self.root.update_idletasks()
+        except Exception:
+            pass
 
         page_w = max(1, int(self.page_image_width))
         page_h = max(1, int(self.page_image_height))
@@ -1706,9 +1534,7 @@ class PDFWatermarkApp:
         view_h = int(self.canvas.winfo_height())
 
         if view_w < WM_MIN_USABLE_VIEW_SIZE:
-            view_w = int(
-                self.main_frame.winfo_width() or self.root.winfo_width() or page_w
-            )
+            view_w = int(self.main_frame.winfo_width() or self.root.winfo_width() or page_w)
         if view_h < WM_MIN_USABLE_VIEW_SIZE:
             try:
                 top_h = int(self.main_frame.grid_bbox(0, 0)[3])
@@ -1744,37 +1570,19 @@ class PDFWatermarkApp:
             self.root.after(delay, recenter_once)
 
     def setup_drag_drop(self):
-        if not load_tkinterdnd():
+        if not HAS_DND:
             return
 
-        widgets = [
-            self.root,
-            self.root.winfo_toplevel(),
-            self.main_frame,
-            self.canvas,
-        ]
-        widgets.extend(self._drop_widgets(self.main_frame))
+        widgets = [self.root, self.root.winfo_toplevel(), self.main_frame, self.canvas]
         for widget in dict.fromkeys(widgets):
             try:
-                if not hasattr(widget, "drop_target_register") or not hasattr(
-                    widget, "dnd_bind"
-                ):
+                if not hasattr(widget, "drop_target_register") or not hasattr(widget, "dnd_bind"):
                     continue
                 widget.drop_target_register(DND_FILES)
                 widget.dnd_bind("<<Drop>>", self.on_drop_file)
                 self.dnd_enabled = True
             except Exception:
                 pass
-
-    def _drop_widgets(self, widget):
-        widgets = [widget]
-        try:
-            children = widget.winfo_children()
-        except Exception:
-            children = []
-        for child in children:
-            widgets.extend(self._drop_widgets(child))
-        return widgets
 
     def on_drop_file(self, event):
         files = parse_dropped_files(event.data, self.root)
@@ -1794,7 +1602,7 @@ class PDFWatermarkApp:
 
         path = filedialog.askopenfilename(
             title="選擇 PDF 檔案",
-            filetypes=[("PDF 檔案", "*.pdf"), ("所有檔案", "*.*")],
+            filetypes=[("PDF 檔案", "*.pdf"), ("所有檔案", "*.*")]
         )
         if not path:
             return
@@ -1837,14 +1645,10 @@ class PDFWatermarkApp:
         self.page_image_width = pix.width
         self.page_image_height = pix.height
 
-        self.canvas.create_image(
-            0, 0, anchor="nw", image=self.page_tk_image, tags=("pdf_page",)
-        )
+        self.canvas.create_image(0, 0, anchor="nw", image=self.page_tk_image, tags=("pdf_page",))
         self.canvas.configure(scrollregion=(0, 0, pix.width, pix.height))
 
-        self.page_label.config(
-            text=f"第 {self.current_page_index + 1} / {len(self.doc)} 頁"
-        )
+        self.page_label.config(text=f"第 {self.current_page_index + 1} / {len(self.doc)} 頁")
 
     def clear_watermark(self):
         if self.watermark_box:
@@ -1891,18 +1695,14 @@ class PDFWatermarkApp:
         if not self.doc:
             return
         old_scale = self.render_scale
-        self.render_scale = min(
-            WM_MAX_RENDER_SCALE, self.render_scale + WM_RENDER_SCALE_STEP
-        )
+        self.render_scale = min(WM_MAX_RENDER_SCALE, self.render_scale + WM_RENDER_SCALE_STEP)
         self.refresh_page_after_zoom(old_scale)
 
     def zoom_out(self):
         if not self.doc:
             return
         old_scale = self.render_scale
-        self.render_scale = max(
-            WM_MIN_RENDER_SCALE, self.render_scale - WM_RENDER_SCALE_STEP
-        )
+        self.render_scale = max(WM_MIN_RENDER_SCALE, self.render_scale - WM_RENDER_SCALE_STEP)
         self.refresh_page_after_zoom(old_scale)
 
     def fit_page_width(self):
@@ -1914,10 +1714,7 @@ class PDFWatermarkApp:
             available_width = max(300, self.canvas.winfo_width() - 30)
             page_width = page.rect.width
             old_scale = self.render_scale
-            self.render_scale = max(
-                WM_MIN_RENDER_SCALE,
-                min(WM_MAX_RENDER_SCALE, available_width / page_width),
-            )
+            self.render_scale = max(WM_MIN_RENDER_SCALE, min(WM_MAX_RENDER_SCALE, available_width / page_width))
             self.refresh_page_after_zoom(old_scale)
         except Exception as e:
             self.add_message(f"適頁失敗：{e}")
@@ -1948,7 +1745,7 @@ class PDFWatermarkApp:
                 old_box["w_pdf"] * self.render_scale,
                 old_box["h_pdf"] * self.render_scale,
                 old_box["text"],
-                font_size=old_box["font_size"],
+                font_size=old_box["font_size"]
             )
 
         self.add_message(f"PDF 預覽縮放：{self.render_scale:.2f}x")
@@ -1960,9 +1757,7 @@ class PDFWatermarkApp:
 
         text = self.build_full_note_text()
         if not text:
-            messagebox.showwarning(
-                "尚未輸入文字", "請先在「輸入註記文字」欄框輸入內容。"
-            )
+            messagebox.showwarning("尚未輸入文字", "請先在「輸入註記文字」欄框輸入內容。")
             return
 
         font_size = self.get_font_size()
@@ -1974,30 +1769,23 @@ class PDFWatermarkApp:
             page_w = max(1, int(self.page_image_width))
             page_h = max(1, int(self.page_image_height))
             view_x, view_y, view_w, view_h = self.get_visible_area()
-            margin = (
-                WM_PAGE_MARGIN
-                if page_w > WM_PAGE_MARGIN * 2 and page_h > WM_PAGE_MARGIN * 2
-                else 0
-            )
+            margin = WM_PAGE_MARGIN if page_w > WM_PAGE_MARGIN * 2 and page_h > WM_PAGE_MARGIN * 2 else 0
             box_w = min(
-                max(
-                    WM_DEFAULT_BOX_MIN_WIDTH,
-                    int(view_w * WM_DEFAULT_BOX_VISIBLE_WIDTH_RATIO),
-                ),
+                max(WM_DEFAULT_BOX_MIN_WIDTH, int(view_w * WM_DEFAULT_BOX_VISIBLE_WIDTH_RATIO)),
                 WM_DEFAULT_BOX_MAX_WIDTH,
-                max(1, page_w - margin * 2),
+                max(1, page_w - margin * 2)
             )
-            box_h = min(
-                max(WM_DEFAULT_BOX_HEIGHT, font_size * 5), max(1, page_h - margin * 2)
-            )
-            box_x = int(
-                min(max(0, view_x + (view_w - box_w) / 2), max(0, page_w - box_w))
-            )
-            box_y = int(
-                min(max(0, view_y + (view_h - box_h) / 2), max(0, page_h - box_h))
-            )
+            box_h = min(max(WM_DEFAULT_BOX_HEIGHT, font_size * 5), max(1, page_h - margin * 2))
+            box_x = int(min(max(0, view_x + (view_w - box_w) / 2), max(0, page_w - box_w)))
+            box_y = int(min(max(0, view_y + (view_h - box_h) / 2), max(0, page_h - box_h)))
             self.watermark_box = SmoothWatermarkBox(
-                self, box_x, box_y, box_w, box_h, text, font_size=font_size
+                self,
+                box_x,
+                box_y,
+                box_w,
+                box_h,
+                text,
+                font_size=font_size
             )
 
         self.recenter_watermark_later()
@@ -2016,7 +1804,7 @@ class PDFWatermarkApp:
             title="儲存 PDF 檔案",
             defaultextension=".pdf",
             initialfile=self.default_save_name(),
-            filetypes=[("PDF 檔案", "*.pdf"), ("所有檔案", "*.*")],
+            filetypes=[("PDF 檔案", "*.pdf"), ("所有檔案", "*.*")]
         )
         if not save_path:
             self.add_message("已取消儲存。")
@@ -2032,9 +1820,7 @@ class PDFWatermarkApp:
             return None
 
         if Path(save_path).resolve() == Path(self.pdf_path).resolve():
-            messagebox.showwarning(
-                "儲存路徑不建議", "請另存為新 PDF，避免覆蓋目前開啟中的原始檔。"
-            )
+            messagebox.showwarning("儲存路徑不建議", "請另存為新 PDF，避免覆蓋目前開啟中的原始檔。")
             self.add_message("已取消儲存：請選擇不同於原始 PDF 的儲存路徑。")
             return None
 
@@ -2056,11 +1842,14 @@ class PDFWatermarkApp:
                 height_px=int(self.watermark_box.height * output_scale),
                 font_size_px=font_size_png,
                 font_file=self.cjk_font_file,
-                color=WM_WATERMARK_RGBA_COLOR,
+                color=WM_WATERMARK_RGBA_COLOR
             )
 
             page.insert_image(
-                rect, stream=png_bytes, overlay=True, keep_proportion=False
+                rect,
+                stream=png_bytes,
+                overlay=True,
+                keep_proportion=False
             )
 
             out_doc.save(save_path, garbage=4, deflate=True)
@@ -2146,7 +1935,6 @@ def file_size_text(path):
         if value < 1024 or unit == units[-1]:
             return f"{value:.1f} {unit}"
         value /= 1024
-    return "-"
 
 
 def parse_drop_files(data):
@@ -2199,13 +1987,9 @@ class ScrollArea(ttk.Frame):
     def __init__(self, master):
         super().__init__(master, style="App.TFrame")
         self.canvas = tk.Canvas(self, bg=BG, highlightthickness=0)
-        self.scrollbar = ttk.Scrollbar(
-            self, orient="vertical", command=self.canvas.yview
-        )
+        self.scrollbar = ttk.Scrollbar(self, orient="vertical", command=self.canvas.yview)
         self.content = ttk.Frame(self.canvas, style="App.TFrame")
-        self.window_id = self.canvas.create_window(
-            (0, 0), window=self.content, anchor="nw"
-        )
+        self.window_id = self.canvas.create_window((0, 0), window=self.content, anchor="nw")
         self.canvas.configure(yscrollcommand=self.scrollbar.set)
         self.canvas.pack(side="left", fill="both", expand=True)
         self.scrollbar.pack(side="right", fill="y")
@@ -2270,21 +2054,17 @@ class BaseTab(ttk.Frame):
     def get_undo_snapshot(self):
         return None
 
-    def restore_undo_snapshot(self, _snapshot):
+    def restore_undo_snapshot(self, snapshot):
         return None
 
     def enable_drop(self, widget, callback):
-        if not load_tkinterdnd() or DND_FILES is None:
+        if DND_FILES is None:
             return
         try:
-            if not hasattr(widget, "drop_target_register") or not hasattr(
-                widget, "dnd_bind"
-            ):
+            if not hasattr(widget, "drop_target_register") or not hasattr(widget, "dnd_bind"):
                 return
             widget.drop_target_register(DND_FILES)
-            widget.dnd_bind(
-                "<<Drop>>", lambda event: callback(parse_drop_files(event.data), event)
-            )
+            widget.dnd_bind("<<Drop>>", lambda event: callback(parse_drop_files(event.data), event))
         except Exception:
             return
 
@@ -2303,11 +2083,7 @@ class BaseTab(ttk.Frame):
         self.resize_after_id = self.after(80, self.relayout_cards)
 
     def columns_for_width(self, card_width):
-        area_width = (
-            self.area.canvas.winfo_width()
-            if hasattr(self, "area")
-            else self.winfo_width()
-        )
+        area_width = self.area.canvas.winfo_width() if hasattr(self, "area") else self.winfo_width()
         return max(1, area_width // card_width)
 
     def relayout_cards(self):
@@ -2388,35 +2164,15 @@ class RotateTab(BaseTab):
     def _build(self):
         toolbar = ttk.Frame(self, style="App.TFrame")
         toolbar.pack(fill="x", pady=(0, 10))
-        rounded_button(toolbar, "開啟 PDF", self.open_pdf, accent=True).pack(
-            side="left"
-        )
-        rounded_button(toolbar, "全部左轉", lambda: self.rotate_all(-90)).pack(
-            side="left", padx=4
-        )
-        rounded_button(toolbar, "全部右轉", lambda: self.rotate_all(90)).pack(
-            side="left"
-        )
+        rounded_button(toolbar, "開啟 PDF", self.open_pdf, accent=True).pack(side="left")
+        rounded_button(toolbar, "全部左轉", lambda: self.rotate_all(-90)).pack(side="left", padx=4)
+        rounded_button(toolbar, "全部右轉", lambda: self.rotate_all(90)).pack(side="left")
         rounded_button(toolbar, "全部重設", self.reset_all).pack(side="left", padx=4)
-        rounded_button(toolbar, "回復上一動作", self.undo_last_action).pack(
-            side="left", padx=4
-        )
-        ttk.Label(toolbar, text="縮圖", style="App.TLabel").pack(
-            side="left", padx=(16, 4)
-        )
-        ttk.Scale(
-            toolbar,
-            from_=90,
-            to=230,
-            variable=self.thumb_size,
-            command=lambda _v: self.render(),
-        ).pack(side="left")
-        rounded_button(toolbar, "輸出修改後 PDF", self.export_pdf, accent=True).pack(
-            side="right"
-        )
-        self.title = ttk.Label(
-            self, text="請開啟或拖曳 PDF 到此分頁", style="App.TLabel"
-        )
+        rounded_button(toolbar, "回復上一動作", self.undo_last_action).pack(side="left", padx=4)
+        ttk.Label(toolbar, text="縮圖", style="App.TLabel").pack(side="left", padx=(16, 4))
+        ttk.Scale(toolbar, from_=90, to=230, variable=self.thumb_size, command=lambda _v: self.render()).pack(side="left")
+        rounded_button(toolbar, "輸出修改後 PDF", self.export_pdf, accent=True).pack(side="right")
+        self.title = ttk.Label(self, text="請開啟或拖曳 PDF 到此分頁", style="App.TLabel")
         self.title.pack(anchor="w", pady=(0, 8))
         self.area = ScrollArea(self)
         self.area.pack(fill="both", expand=True)
@@ -2463,9 +2219,7 @@ class RotateTab(BaseTab):
     def restore_undo_snapshot(self, snapshot):
         self.pdf_path = snapshot["pdf_path"]
         self.pages = [dict(item) for item in snapshot["pages"]]
-        self.title.configure(
-            text=f"{os.path.basename(self.pdf_path)} / {len(self.pages)} 頁"
-        )
+        self.title.configure(text=f"{os.path.basename(self.pdf_path)} / {len(self.pages)} 頁")
         self.render()
 
     def render(self):
@@ -2477,42 +2231,23 @@ class RotateTab(BaseTab):
         image_box_height = int(self.thumb_size.get() * 1.45)
         for pos, item in enumerate(self.pages):
             card = ttk.Frame(self.area.content, padding=8, style="Card.TFrame")
-            card.grid(
-                row=pos // columns, column=pos % columns, padx=6, pady=6, sticky="n"
-            )
+            card.grid(row=pos // columns, column=pos % columns, padx=6, pady=6, sticky="n")
             self.drag_cards.append(card)
-            thumb = make_thumbnail(
-                self.pdf_path, item["index"], self.thumb_size.get(), item["rotation"]
-            )
+            thumb = make_thumbnail(self.pdf_path, item["index"], self.thumb_size.get(), item["rotation"])
             self.thumbs.append(thumb)
-            image_box = ttk.Frame(
-                card,
-                width=self.thumb_size.get(),
-                height=image_box_height,
-                style="Card.TFrame",
-            )
+            image_box = ttk.Frame(card, width=self.thumb_size.get(), height=image_box_height, style="Card.TFrame")
             image_box.pack_propagate(False)
             image_box.pack()
             label = ttk.Label(image_box, image=thumb)
             label.place(relx=0.5, rely=0.5, anchor="center")
             self.bind_drag_sort(label, pos)
-            page_label = ttk.Label(
-                card,
-                text=f"第 {pos + 1} 頁 / {item['rotation'] % 360}°",
-                style="Card.TLabel",
-            )
+            page_label = ttk.Label(card, text=f"第 {pos + 1} 頁 / {item['rotation'] % 360}°", style="Card.TLabel")
             page_label.pack(pady=(6, 4))
             buttons = ttk.Frame(card, style="Card.TFrame")
             buttons.pack()
-            rounded_button(
-                buttons, "左轉", lambda p=pos: self.rotate_one(p, -90), width=58
-            ).pack(side="left")
-            rounded_button(
-                buttons, "右轉", lambda p=pos: self.rotate_one(p, 90), width=58
-            ).pack(side="left", padx=2)
-            rounded_button(
-                buttons, "重設", lambda p=pos: self.reset_one(p), width=58
-            ).pack(side="left")
+            rounded_button(buttons, "左轉", lambda p=pos: self.rotate_one(p, -90), width=58).pack(side="left")
+            rounded_button(buttons, "右轉", lambda p=pos: self.rotate_one(p, 90), width=58).pack(side="left", padx=2)
+            rounded_button(buttons, "重設", lambda p=pos: self.reset_one(p), width=58).pack(side="left")
             self.page_widgets.append({"image": label, "label": page_label})
 
     def get_columns(self):
@@ -2522,9 +2257,7 @@ class RotateTab(BaseTab):
         if not self.pdf_path or pos >= len(self.page_widgets):
             return
         item = self.pages[pos]
-        thumb = make_thumbnail(
-            self.pdf_path, item["index"], self.thumb_size.get(), item["rotation"]
-        )
+        thumb = make_thumbnail(self.pdf_path, item["index"], self.thumb_size.get(), item["rotation"])
         self.thumbs[pos] = thumb
         widgets = self.page_widgets[pos]
         widgets["image"].configure(image=thumb)
@@ -2533,11 +2266,7 @@ class RotateTab(BaseTab):
 
     def end_drag(self, event):
         to_pos = self.find_drop_position(event)
-        if (
-            self.drag_from is not None
-            and to_pos is not None
-            and self.drag_from != to_pos
-        ):
+        if self.drag_from is not None and to_pos is not None and self.drag_from != to_pos:
             self.push_undo()
         moved = self.move_item(self.pages, self.drag_from, to_pos)
         self.drag_from = None
@@ -2583,9 +2312,7 @@ class RotateTab(BaseTab):
         result = fitz.open()
         try:
             for item in self.pages:
-                result.insert_pdf(
-                    source, from_page=item["index"], to_page=item["index"]
-                )
+                result.insert_pdf(source, from_page=item["index"], to_page=item["index"])
                 page = result[-1]
                 page.set_rotation((page.rotation + item["rotation"]) % 360)
             result.save(output, garbage=4, deflate=True)
@@ -2610,30 +2337,14 @@ class CompressTab(BaseTab):
     def _build(self):
         toolbar = ttk.Frame(self, style="App.TFrame")
         toolbar.pack(fill="x", pady=(0, 10))
-        rounded_button(toolbar, "開啟 PDF", self.open_pdf, accent=True).pack(
-            side="left"
-        )
-        rounded_button(toolbar, "回復上一動作", self.undo_last_action).pack(
-            side="left", padx=4
-        )
-        ttk.Label(toolbar, text="壓縮比例", style="App.TLabel").pack(
-            side="left", padx=(16, 6)
-        )
-        self.quality_scale = ttk.Scale(
-            toolbar,
-            from_=35,
-            to=95,
-            variable=self.quality,
-            command=lambda _v: self.update_estimate(),
-        )
+        rounded_button(toolbar, "開啟 PDF", self.open_pdf, accent=True).pack(side="left")
+        rounded_button(toolbar, "回復上一動作", self.undo_last_action).pack(side="left", padx=4)
+        ttk.Label(toolbar, text="壓縮比例", style="App.TLabel").pack(side="left", padx=(16, 6))
+        self.quality_scale = ttk.Scale(toolbar, from_=35, to=95, variable=self.quality, command=lambda _v: self.update_estimate())
         self.quality_scale.pack(side="left", fill="x", expand=True)
         self.quality_scale.bind("<ButtonPress-1>", lambda _event: self.push_undo())
-        rounded_button(toolbar, "輸出壓縮PDF", self.export_pdf, accent=True).pack(
-            side="right", padx=(10, 0)
-        )
-        self.info = ttk.Label(
-            self, text="請開啟或拖曳 PDF 到此分頁", style="App.TLabel"
-        )
+        rounded_button(toolbar, "輸出壓縮PDF", self.export_pdf, accent=True).pack(side="right", padx=(10, 0))
+        self.info = ttk.Label(self, text="請開啟或拖曳 PDF 到此分頁", style="App.TLabel")
         self.info.pack(anchor="w", pady=(0, 12))
         stats = ttk.Frame(self, style="App.TFrame")
         stats.pack(fill="x", pady=(0, 12))
@@ -2714,16 +2425,12 @@ class CompressTab(BaseTab):
                 temp = Path(output).with_suffix(".jpg")
                 img.save(temp, "JPEG", quality=quality, optimize=True)
                 rect = fitz.Rect(0, 0, page.rect.width, page.rect.height)
-                new_page = result.new_page(
-                    width=page.rect.width, height=page.rect.height
-                )
+                new_page = result.new_page(width=page.rect.width, height=page.rect.height)
                 new_page.insert_image(rect, filename=str(temp))
                 temp.unlink(missing_ok=True)
             result.save(output, garbage=4, deflate=True)
             self.actual_size.set(f"壓縮後實際大小\n{file_size_text(output)}")
-            messagebox.showinfo(
-                "完成", f"已輸出：\n{output}\n\n實際大小：{file_size_text(output)}"
-            )
+            messagebox.showinfo("完成", f"已輸出：\n{output}\n\n實際大小：{file_size_text(output)}")
         except Exception as exc:
             messagebox.showerror("輸出失敗", str(exc))
         finally:
@@ -2740,17 +2447,11 @@ class MergeTab(BaseTab):
     def _build(self):
         toolbar = ttk.Frame(self, style="App.TFrame")
         toolbar.pack(fill="x", pady=(0, 10))
-        rounded_button(toolbar, "加入 PDF", self.add_files, accent=True).pack(
-            side="left"
-        )
+        rounded_button(toolbar, "加入 PDF", self.add_files, accent=True).pack(side="left")
         rounded_button(toolbar, "清空", self.clear).pack(side="left", padx=4)
         rounded_button(toolbar, "回復上一動作", self.undo_last_action).pack(side="left")
-        rounded_button(toolbar, "輸出合併 PDF", self.export_pdf, accent=True).pack(
-            side="right"
-        )
-        self.title = ttk.Label(
-            self, text="請加入或拖曳 PDF 到此分頁", style="App.TLabel"
-        )
+        rounded_button(toolbar, "輸出合併 PDF", self.export_pdf, accent=True).pack(side="right")
+        self.title = ttk.Label(self, text="請加入或拖曳 PDF 到此分頁", style="App.TLabel")
         self.title.pack(anchor="w", pady=(0, 8))
         self.area = ScrollArea(self)
         self.area.pack(fill="both", expand=True)
@@ -2786,21 +2487,14 @@ class MergeTab(BaseTab):
         columns = self.get_columns()
         for pos, path in enumerate(self.files):
             card = ttk.Frame(self.area.content, padding=8, style="Card.TFrame")
-            card.grid(
-                row=pos // columns, column=pos % columns, padx=6, pady=6, sticky="n"
-            )
+            card.grid(row=pos // columns, column=pos % columns, padx=6, pady=6, sticky="n")
             self.drag_cards.append(card)
             thumb = make_thumbnail(path, 0, 150)
             self.thumbs.append(thumb)
             label = ttk.Label(card, image=thumb)
             label.pack()
             self.bind_drag_sort(label, pos)
-            ttk.Label(
-                card,
-                text=f"{pos + 1}. {os.path.basename(path)}",
-                wraplength=160,
-                style="Card.TLabel",
-            ).pack(pady=(6, 4))
+            ttk.Label(card, text=f"{pos + 1}. {os.path.basename(path)}", wraplength=160, style="Card.TLabel").pack(pady=(6, 4))
             rounded_button(card, "移除", lambda p=pos: self.remove(p), width=64).pack()
 
     def get_columns(self):
@@ -2808,11 +2502,7 @@ class MergeTab(BaseTab):
 
     def end_drag(self, event):
         to_pos = self.find_drop_position(event)
-        if (
-            self.drag_from is not None
-            and to_pos is not None
-            and self.drag_from != to_pos
-        ):
+        if self.drag_from is not None and to_pos is not None and self.drag_from != to_pos:
             self.push_undo()
         moved = self.move_item(self.files, self.drag_from, to_pos)
         self.drag_from = None
@@ -2862,17 +2552,11 @@ class EditTab(BaseTab):
     def _build(self):
         toolbar = ttk.Frame(self, style="App.TFrame")
         toolbar.pack(fill="x", pady=(0, 10))
-        rounded_button(toolbar, "開啟 PDF", self.open_pdf, accent=True).pack(
-            side="left"
-        )
+        rounded_button(toolbar, "開啟 PDF", self.open_pdf, accent=True).pack(side="left")
         rounded_button(toolbar, "插入 PDF", self.insert_pdf).pack(side="left", padx=4)
         rounded_button(toolbar, "回復上一動作", self.undo_last_action).pack(side="left")
-        rounded_button(toolbar, "輸出編輯 PDF", self.export_pdf, accent=True).pack(
-            side="right"
-        )
-        self.title = ttk.Label(
-            self, text="請開啟 PDF；拖曳其他 PDF 可插入頁面", style="App.TLabel"
-        )
+        rounded_button(toolbar, "輸出編輯 PDF", self.export_pdf, accent=True).pack(side="right")
+        self.title = ttk.Label(self, text="請開啟 PDF；拖曳其他 PDF 可插入頁面", style="App.TLabel")
         self.title.pack(anchor="w", pady=(0, 8))
         self.area = ScrollArea(self)
         self.area.pack(fill="both", expand=True)
@@ -2915,15 +2599,7 @@ class EditTab(BaseTab):
             return
         self.push_undo()
         self.base_path = path
-        self.pages = [
-            {
-                "path": path,
-                "index": i,
-                "inserted": False,
-                "delete": tk.BooleanVar(value=False),
-            }
-            for i in range(count)
-        ]
+        self.pages = [{"path": path, "index": i, "inserted": False, "delete": tk.BooleanVar(value=False)} for i in range(count)]
         self.render()
 
     def get_undo_snapshot(self):
@@ -2964,12 +2640,7 @@ class EditTab(BaseTab):
             messagebox.showerror("插入失敗", f"{path}\n{exc}")
             return insert_at
         new_pages = [
-            {
-                "path": path,
-                "index": i,
-                "inserted": True,
-                "delete": tk.BooleanVar(value=False),
-            }
+            {"path": path, "index": i, "inserted": True, "delete": tk.BooleanVar(value=False)}
             for i in range(count)
         ]
         if insert_at is None:
@@ -2982,45 +2653,31 @@ class EditTab(BaseTab):
         self.clear_frame(self.area.content)
         if not self.base_path:
             return
-        self.title.configure(
-            text=f"{os.path.basename(self.base_path)} / 目前 {len(self.pages)} 頁"
-        )
+        self.title.configure(text=f"{os.path.basename(self.base_path)} / 目前 {len(self.pages)} 頁")
         columns = self.get_columns()
         for pos, item in enumerate(self.pages):
             color = (80, 160, 255, 70) if item["inserted"] else None
             if item["delete"].get():
                 color = (255, 80, 80, 90)
             card = ttk.Frame(self.area.content, padding=8, style="Card.TFrame")
-            card.grid(
-                row=pos // columns, column=pos % columns, padx=6, pady=6, sticky="n"
-            )
+            card.grid(row=pos // columns, column=pos % columns, padx=6, pady=6, sticky="n")
             self.drag_cards.append(card)
             thumb = make_thumbnail(item["path"], item["index"], 150, mark=color)
             self.thumbs.append(thumb)
             label = ttk.Label(card, image=thumb)
             label.pack()
             self.bind_drag_sort(label, pos)
-            ttk.Label(
-                card, text=f"第 {pos + 1} 頁", wraplength=150, style="Card.TLabel"
-            ).pack(pady=(6, 2))
-            delete_check = ttk.Checkbutton(
-                card, text="刪除", variable=item["delete"], command=self.render
-            )
+            ttk.Label(card, text=f"第 {pos + 1} 頁", wraplength=150, style="Card.TLabel").pack(pady=(6, 2))
+            delete_check = ttk.Checkbutton(card, text="刪除", variable=item["delete"], command=self.render)
             delete_check.pack()
-            delete_check.bind(
-                "<ButtonPress-1>", lambda _event: self.push_undo(), add="+"
-            )
+            delete_check.bind("<ButtonPress-1>", lambda _event: self.push_undo(), add="+")
 
     def get_columns(self):
         return self.columns_for_width(198)
 
     def end_drag(self, event):
         to_pos = self.find_drop_position(event)
-        if (
-            self.drag_from is not None
-            and to_pos is not None
-            and self.drag_from != to_pos
-        ):
+        if self.drag_from is not None and to_pos is not None and self.drag_from != to_pos:
             self.push_undo()
         moved = self.move_item(self.pages, self.drag_from, to_pos)
         self.drag_from = None
@@ -3049,9 +2706,7 @@ class EditTab(BaseTab):
                 path = item["path"]
                 if path not in open_docs:
                     open_docs[path] = fitz.open(path)
-                result.insert_pdf(
-                    open_docs[path], from_page=item["index"], to_page=item["index"]
-                )
+                result.insert_pdf(open_docs[path], from_page=item["index"], to_page=item["index"])
             if result.page_count == 0:
                 messagebox.showwarning("沒有頁面", "全部頁面都被刪除，無法輸出。")
                 return
@@ -3078,19 +2733,11 @@ class PDFTurnPanel:
         style.configure("TFrame", background=BG)
         style.configure("TLabel", background=BG, foreground=TEXT, font=FONT)
         style.configure("TButton", padding=(10, 5), font=LARGE_BTN_FONT)
-        style.configure(
-            "Stat.TLabel",
-            background=CARD,
-            foreground=TEXT,
-            font=TITLE_FONT,
-            padding=(18, 18),
-        )
+        style.configure("Stat.TLabel", background=CARD, foreground=TEXT, font=TITLE_FONT, padding=(18, 18))
         style.configure("TurnTabHost.TFrame", background=BG)
 
     def _build(self):
-        self.tab_bar = ttk.Frame(
-            self.root, padding=(12, 12, 12, 4), style="TurnTabHost.TFrame"
-        )
+        self.tab_bar = ttk.Frame(self.root, padding=(12, 12, 12, 4), style="TurnTabHost.TFrame")
         self.tab_bar.pack(fill="x")
         self.content = ttk.Frame(self.root, style="App.TFrame")
         self.content.pack(fill="both", expand=True, padx=12, pady=(0, 12))
@@ -3123,18 +2770,16 @@ class PDFTurnPanel:
         for index, (_title, tab) in enumerate(self.tabs):
             tab.pack_forget()
             self.tab_buttons[index].configure(
-                fg_color=TURN_TAB_ACTIVE
-                if index == active_index
-                else TURN_TAB_COLORS[index],
+                fg_color=TURN_TAB_ACTIVE if index == active_index else TURN_TAB_COLORS[index],
                 text_color="white" if index == active_index else TEXT,
             )
         self.tabs[active_index][1].pack(fill="both", expand=True)
-
 
 # =========================================================
 # Main
 # =========================================================
 class PDFRenameTool:
+
     def __init__(self, root):
         self.root = root
         self.root.title(APP_TITLE)
@@ -3165,10 +2810,14 @@ class PDFRenameTool:
         self.vars = {}
         self.entry_widgets = {}
 
+        self._resize_after_id = None
         self._auto_fit_preview = True
+        self._compact_layout = False
 
         self.create_style()
         self.create_ui()
+        self.bind_responsive_resize()
+        self.root.after(80, self.apply_responsive_refresh)
 
         # 先讓主視窗顯示出來，再用背景執行緒逐步預熱 PDF 相關模組。
         # OCR 套件仍維持真正使用時才載入，避免啟動後背景也吃太多資源。
@@ -3210,9 +2859,7 @@ class PDFRenameTool:
                     append_startup_log(f"背景預熱略過：{label}：{exc}")
                 time.sleep(0.25)
 
-        threading.Thread(
-            target=worker, name="GuppyDeferredPreload", daemon=True
-        ).start()
+        threading.Thread(target=worker, name="GuppyDeferredPreload", daemon=True).start()
 
     # =====================================================
     # UI Factory
@@ -3220,13 +2867,7 @@ class PDFRenameTool:
     def create_style(self):
         style = ttk.Style()
         style.theme_use("default")
-        style.configure(
-            "Treeview",
-            rowheight=34,
-            font=TREE_FONT,
-            background="white",
-            fieldbackground="white",
-        )
+        style.configure("Treeview", rowheight=34, font=TREE_FONT, background="white", fieldbackground="white")
         style.configure("Treeview.Heading", font=TITLE_FONT)
         style.configure(".", background=BG, foreground=TEXT, font=FONT)
         style.configure("TFrame", background=BG)
@@ -3235,57 +2876,18 @@ class PDFRenameTool:
         style.configure("TCheckbutton", background=CARD, foreground=TEXT, font=FONT)
         style.configure("App.TFrame", background=BG)
         style.configure("Card.TFrame", background=CARD)
-        style.configure(
-            "App.TLabelframe",
-            background=CARD,
-            bordercolor=PREVIEW_BORDER,
-            relief="solid",
-        )
-        style.configure(
-            "App.TLabelframe.Label", background=CARD, foreground=TEXT, font=TITLE_FONT
-        )
+        style.configure("App.TLabelframe", background=CARD, bordercolor=PREVIEW_BORDER, relief="solid")
+        style.configure("App.TLabelframe.Label", background=CARD, foreground=TEXT, font=TITLE_FONT)
         style.configure("App.TLabel", background=BG, foreground=TEXT, font=FONT)
         style.configure("Card.TLabel", background=CARD, foreground=TEXT, font=FONT)
-        style.configure(
-            "Muted.TLabel", background=CARD, foreground=MUTED_TEXT, font=FONT
-        )
-        style.configure(
-            "Accent.TButton",
-            font=LARGE_BTN_FONT,
-            foreground="white",
-            background=PRIMARY,
-            borderwidth=1,
-        )
-        style.map(
-            "Accent.TButton",
-            background=[("active", PRIMARY_HOVER), ("pressed", PRIMARY_HOVER)],
-        )
-        style.configure(
-            "Soft.TButton",
-            font=LARGE_BTN_FONT,
-            foreground="black",
-            background=PREVIEW_BLUE,
-            borderwidth=1,
-        )
-        style.map(
-            "Soft.TButton",
-            background=[
-                ("active", PRIMARY_SOFT_HOVER),
-                ("pressed", PRIMARY_SOFT_HOVER),
-            ],
-        )
+        style.configure("Muted.TLabel", background=CARD, foreground=MUTED_TEXT, font=FONT)
+        style.configure("Accent.TButton", font=LARGE_BTN_FONT, foreground="white", background=PRIMARY, borderwidth=1)
+        style.map("Accent.TButton", background=[("active", PRIMARY_HOVER), ("pressed", PRIMARY_HOVER)])
+        style.configure("Soft.TButton", font=LARGE_BTN_FONT, foreground="black", background=PREVIEW_BLUE, borderwidth=1)
+        style.map("Soft.TButton", background=[("active", PRIMARY_SOFT_HOVER), ("pressed", PRIMARY_SOFT_HOVER)])
 
-    def button(
-        self,
-        parent,
-        text,
-        command,
-        width=90,
-        color=PRIMARY,
-        hover=PRIMARY_HOVER,
-        text_color="white",
-        border=False,
-    ):
+    def button(self, parent, text, command, width=90, color=PRIMARY, hover=PRIMARY_HOVER,
+               text_color="white", border=False):
         width = max(width, int(len(text) * 18 + 28))
         return ctk.CTkButton(
             parent,
@@ -3384,6 +2986,135 @@ class PDFRenameTool:
         self.switch_mode("rename")
         self.create_signature_footer()
 
+    def bind_responsive_resize(self):
+        """讓主版面、預覽區與縮圖卡片在視窗尺寸改變後重新整理。"""
+        self.root.bind("<Configure>", self.schedule_responsive_refresh, add="+")
+        try:
+            self.canvas.bind("<Configure>", self.schedule_preview_refit, add="+")
+        except Exception:
+            pass
+
+    def schedule_responsive_refresh(self, _event=None):
+        if self._resize_after_id:
+            try:
+                self.root.after_cancel(self._resize_after_id)
+            except Exception:
+                pass
+        self._resize_after_id = self.root.after(180, self.apply_responsive_refresh)
+
+    def schedule_preview_refit(self, _event=None):
+        if self.current_mode == "rename" and self.pdf_doc and self._auto_fit_preview:
+            self.schedule_responsive_refresh()
+
+    def apply_responsive_refresh(self):
+        self._resize_after_id = None
+        try:
+            self.root.update_idletasks()
+        except Exception:
+            pass
+
+        try:
+            width = int(self.root.winfo_width() or 0)
+            compact = width < 1180
+            self.apply_compact_layout(compact)
+            self.main.grid_columnconfigure(0, minsize=280 if compact else 340)
+            self.main.grid_columnconfigure(1, minsize=48 if compact else 58)
+            self.main.grid_columnconfigure(2, minsize=300 if compact else 340)
+            self.main.grid_columnconfigure(3, minsize=54 if compact else 62)
+            if hasattr(self, "preview_toolbar_right"):
+                if compact:
+                    self.preview_toolbar_right.grid(row=1, column=0, sticky="w", padx=10, pady=(0, 8))
+                else:
+                    self.preview_toolbar_right.grid(row=0, column=1, sticky="e", padx=10, pady=8)
+        except Exception:
+            pass
+
+        # 重新排列第四分頁縮圖卡片，避免視窗拉寬後仍維持舊欄數。
+        try:
+            if hasattr(self.turn_app, "tabs"):
+                for _title, tab in self.turn_app.tabs:
+                    if hasattr(tab, "schedule_layout"):
+                        tab.schedule_layout()
+        except Exception:
+            pass
+
+    def apply_compact_layout(self, compact: bool):
+        self._compact_layout = compact
+        size = UI_FONT_SIZE
+        button_size = UI_FONT_SIZE
+        font = ("Microsoft JhengHei UI", size)
+        title_font = ("Microsoft JhengHei UI", size, "bold")
+        button_font = ("Microsoft JhengHei UI", button_size)
+        rowheight = 25 if compact else 34
+        small_pad = 6 if compact else 12
+
+        try:
+            style = ttk.Style()
+            style.configure("Treeview", rowheight=rowheight, font=font)
+            style.configure("Treeview.Heading", font=title_font)
+            style.configure(".", font=font)
+            style.configure("TLabel", font=font)
+            style.configure("TButton", padding=(8, 3) if compact else (10, 5), font=button_font)
+            style.configure("TCheckbutton", font=font)
+            style.configure("App.TLabelframe.Label", font=title_font)
+            style.configure("App.TLabel", font=font)
+            style.configure("Card.TLabel", font=font)
+            style.configure("Muted.TLabel", font=font)
+            style.configure("Accent.TButton", font=button_font)
+            style.configure("Soft.TButton", font=button_font)
+        except Exception:
+            pass
+
+        for frame_name in ("folder_area_frame", "form_outer", "bottom_rename_area", "move_top_area", "move_bottom_area"):
+            frame = getattr(self, frame_name, None)
+            if frame is not None:
+                try:
+                    frame.configure(padx=small_pad, pady=small_pad)
+                except Exception:
+                    pass
+
+        try:
+            self.left_shell.grid_rowconfigure(1, minsize=80 if compact else 180)
+            self.tree.configure(height=5 if compact else 8)
+            self.move_tree.configure(height=5 if compact else 10)
+        except Exception:
+            pass
+
+        try:
+            if hasattr(self, "ocr_text"):
+                self.ocr_text.configure(font=font, height=2 if compact else 3)
+        except Exception:
+            pass
+
+        def update_widget_tree(widget):
+            for child in widget.winfo_children():
+                try:
+                    if isinstance(child, tk.Label):
+                        child.configure(font=title_font if child.cget("font") == str(TITLE_FONT) else font)
+                    elif isinstance(child, tk.Text):
+                        child.configure(font=font)
+                    elif isinstance(child, (ctk.CTkButton, ctk.CTkCheckBox)):
+                        child.configure(font=button_font)
+                        if isinstance(child, ctk.CTkButton):
+                            child.configure(height=30)
+                    elif isinstance(child, (ctk.CTkEntry, ctk.CTkComboBox)):
+                        child.configure(font=font, height=INPUT_HEIGHT)
+                except Exception:
+                    pass
+                update_widget_tree(child)
+
+        try:
+            update_widget_tree(self.root)
+        except Exception:
+            pass
+
+        # 更名預覽若使用「整頁」狀態，視窗變寬或變窄時自動重算縮放。
+        try:
+            if self.current_mode == "rename" and self.pdf_doc and self._auto_fit_preview:
+                self.fit_page()
+        except Exception:
+            pass
+
     def create_signature_footer(self):
         footer = tk.Frame(self.root, bg=BG, height=28)
         footer.pack(side="bottom", fill="x")
@@ -3480,17 +3211,12 @@ class PDFRenameTool:
             self.right_shell.grid_forget()
             self.center_move_btn.place_forget()
             if mode == "watermark":
-                self.watermark_page.grid(
-                    row=0, column=0, columnspan=3, sticky="nsew", padx=(12, 6), pady=12
-                )
+                self.watermark_page.grid(row=0, column=0, columnspan=3, sticky="nsew", padx=(12, 6), pady=12)
                 self.watermark_page.grid_rowconfigure(0, weight=1)
                 self.watermark_page.grid_columnconfigure(0, weight=1)
                 self.watermark_tab_btn.configure(fg_color=PRIMARY, text_color="white")
-                self.root.after(100, self.watermark_app.setup_drag_drop)
             else:
-                self.turn_page.grid(
-                    row=0, column=0, columnspan=3, sticky="nsew", padx=(12, 6), pady=12
-                )
+                self.turn_page.grid(row=0, column=0, columnspan=3, sticky="nsew", padx=(12, 6), pady=12)
                 self.turn_page.grid_rowconfigure(0, weight=1)
                 self.turn_page.grid_columnconfigure(0, weight=1)
                 self.turn_tab_btn.configure(fg_color=PRIMARY, text_color="white")
@@ -3517,9 +3243,7 @@ class PDFRenameTool:
         frame.grid(row=0, column=0, sticky="ew", pady=(0, 10))
         frame.configure(padx=12, pady=12)
 
-        tk.Label(frame, text="選擇資料夾", bg=CARD, fg=TEXT, font=TITLE_FONT).pack(
-            anchor="w", pady=(0, 8)
-        )
+        tk.Label(frame, text="選擇資料夾", bg=CARD, fg=TEXT, font=TITLE_FONT).pack(anchor="w", pady=(0, 8))
 
         row = tk.Frame(frame, bg=CARD)
         row.pack(fill="x")
@@ -3538,9 +3262,7 @@ class PDFRenameTool:
         ]
 
         for text, cmd, width, color, hover, text_color in buttons:
-            self.button(button_row, text, cmd, width, color, hover, text_color).pack(
-                side="left", padx=2
-            )
+            self.button(button_row, text, cmd, width, color, hover, text_color).pack(side="left", padx=2)
 
     def create_treeview(self, parent):
         frame = self.card(parent)
@@ -3566,9 +3288,7 @@ class PDFRenameTool:
 
         self.tree.column("no", width=70, minwidth=70, anchor="center", stretch=False)
         self.tree.column("filename", width=430, minwidth=220, stretch=True)
-        self.tree.column(
-            "date", width=180, minwidth=160, anchor="center", stretch=False
-        )
+        self.tree.column("date", width=180, minwidth=160, anchor="center", stretch=False)
 
         scroll = ttk.Scrollbar(frame, orient="vertical", command=self.tree.yview)
         x_scroll = ttk.Scrollbar(frame, orient="horizontal", command=self.tree.xview)
@@ -3599,9 +3319,7 @@ class PDFRenameTool:
         ]
 
         for row, (title, kind) in enumerate(fields):
-            tk.Label(form, text=title, bg=CARD, fg=TEXT, font=FONT).grid(
-                row=row, column=0, sticky="w", pady=1
-            )
+            tk.Label(form, text=title, bg=CARD, fg=TEXT, font=FONT).grid(row=row, column=0, sticky="w", pady=1)
 
             var = tk.StringVar()
             self.vars[title] = var
@@ -3611,10 +3329,7 @@ class PDFRenameTool:
                 widget.set("")
             else:
                 widget = self.entry(form, var)
-                widget.bind(
-                    "<Button-1>",
-                    lambda _event, field=title: self.fill_field_from_ocr(field),
-                )
+                widget.bind("<Button-1>", lambda _event, field=title: self.fill_field_from_ocr(field))
 
             self.entry_widgets[title] = widget
             widget.grid(row=row, column=1, sticky="ew", padx=6, pady=1)
@@ -3624,12 +3339,7 @@ class PDFRenameTool:
         self.create_bottom_rename_area(outer)
 
     def create_bottom_rename_area(self, parent):
-        bottom = tk.Frame(
-            parent,
-            bg=PRIMARY_SOFT,
-            highlightbackground=PREVIEW_BORDER,
-            highlightthickness=1,
-        )
+        bottom = tk.Frame(parent, bg=PRIMARY_SOFT, highlightbackground=PREVIEW_BORDER, highlightthickness=1)
         self.bottom_rename_area = bottom
         bottom.pack(fill="x", pady=(6, 0))
         bottom.configure(padx=8, pady=8)
@@ -3649,9 +3359,7 @@ class PDFRenameTool:
                 row=row, column=0, sticky="w", pady=pady
             )
 
-            self.entry(bottom, var, color).grid(
-                row=row, column=1, sticky="ew", padx=6, pady=(2, 0) if row else 0
-            )
+            self.entry(bottom, var, color).grid(row=row, column=1, sticky="ew", padx=6, pady=(2, 0) if row else 0)
 
             self.button(bottom, btn_text, cmd, width=110 if row else 100).grid(
                 row=row, column=2, padx=3, pady=(2, 0) if row else 0
@@ -3660,37 +3368,31 @@ class PDFRenameTool:
         bottom.columnconfigure(1, weight=1)
 
     def create_preview_toolbar(self, parent):
-        # 低解析度時分成兩列，先保住翻頁與縮放控制，避免被 OCR 狀態列擠出可視範圍。
+        # 改用 grid 取代固定高度 pack，讓最大化 / 拉伸時工具列可以跟著寬度重新分配。
         bar = tk.Frame(parent, bg=CARD)
+        self.preview_toolbar_bar = bar
         bar.pack(fill="x", pady=(0, 10))
         bar.grid_columnconfigure(0, weight=1)
+        bar.grid_columnconfigure(1, weight=0)
 
         left = tk.Frame(bar, bg=CARD)
-        left.grid(row=0, column=0, sticky="w", padx=10, pady=(8, 3))
+        left.grid(row=0, column=0, sticky="w", padx=10, pady=8)
 
-        for text, cmd, width in (
-            ("-", self.zoom_out, 44),
-            ("+", self.zoom_in, 44),
-            ("Fit", self.fit_page, 58),
-        ):
+        for text, cmd, width in (("-", self.zoom_out, 44), ("+", self.zoom_in, 44), ("Fit", self.fit_page, 58)):
             self.preview_button(left, text, cmd, width).pack(side="left", padx=2)
 
         self.page_var = tk.StringVar(value="0 / 0")
-        tk.Label(left, textvariable=self.page_var, bg=CARD, fg=TEXT, font=FONT).pack(
-            side="left", padx=(10, 6)
-        )
+        tk.Label(left, textvariable=self.page_var, bg=CARD, fg=TEXT, font=FONT).pack(side="left", padx=(10, 6))
 
         for text, cmd in (("<", self.prev_page), (">", self.next_page)):
             self.preview_button(left, text, cmd, 38).pack(side="left", padx=2)
 
         right = tk.Frame(bar, bg=CARD)
-        right.grid(row=1, column=0, sticky="ew", padx=10, pady=(0, 8))
-        right.grid_columnconfigure(0, weight=1)
+        self.preview_toolbar_right = right
+        right.grid(row=0, column=1, sticky="e", padx=10, pady=8)
 
         self.ocr_status_var = tk.StringVar(value="OCR：尚未載入")
-        tk.Label(
-            right, textvariable=self.ocr_status_var, bg=CARD, fg=TEXT, font=FONT
-        ).grid(row=0, column=0, sticky="w", padx=(0, 10))
+        tk.Label(right, textvariable=self.ocr_status_var, bg=CARD, fg=TEXT, font=FONT).pack(side="left", padx=(0, 10))
 
         self.ocr_check = ctk.CTkCheckBox(
             right,
@@ -3699,7 +3401,7 @@ class PDFRenameTool:
             command=self.toggle_ocr_mode,
             font=BTN_FONT,
         )
-        self.ocr_check.grid(row=0, column=1, sticky="e", padx=2)
+        self.ocr_check.pack(side="left", padx=2)
 
     def create_preview_area(self, parent):
         frame = self.card(parent)
@@ -3744,23 +3446,10 @@ class PDFRenameTool:
         title_row = tk.Frame(frame, bg=CARD)
         title_row.pack(fill="x", padx=10, pady=(8, 4))
 
-        tk.Label(
-            title_row, text="測試辨識字串", bg=CARD, fg=TEXT, font=TITLE_FONT
-        ).pack(side="left")
-        self.preview_button(title_row, "清除", self.clear_ocr_text, 70).pack(
-            side="right"
-        )
+        tk.Label(title_row, text="測試辨識字串", bg=CARD, fg=TEXT, font=TITLE_FONT).pack(side="left")
+        self.preview_button(title_row, "清除", self.clear_ocr_text, 70).pack(side="right")
 
-        self.ocr_text = tk.Text(
-            frame,
-            height=3,
-            font=FONT,
-            bg=OCR_BG,
-            fg=TEXT,
-            wrap="word",
-            relief="solid",
-            bd=1,
-        )
+        self.ocr_text = tk.Text(frame, height=3, font=FONT, bg=OCR_BG, fg=TEXT, wrap="word", relief="solid", bd=1)
         self.ocr_text.pack(fill="both", expand=True, padx=10, pady=(0, 8))
         self.set_text(self.ocr_text, OCR_PLACEHOLDER)
 
@@ -3817,8 +3506,10 @@ class PDFRenameTool:
             self.canvas.delete("all")
 
         if self.preview_pil_img is not None:
-            with suppress(Exception):
+            try:
                 self.preview_pil_img.close()
+            except Exception:
+                pass
 
         self.preview_pil_img = None
         self.preview_img = None
@@ -3839,9 +3530,7 @@ class PDFRenameTool:
         top.pack(fill="x", pady=(0, 8))
         top.configure(padx=8, pady=8)
 
-        tk.Label(top, text="搬移目的資料夾", bg=CARD, fg=TEXT, font=TITLE_FONT).pack(
-            anchor="w", pady=(0, 4)
-        )
+        tk.Label(top, text="搬移目的資料夾", bg=CARD, fg=TEXT, font=TITLE_FONT).pack(anchor="w", pady=(0, 4))
 
         row = tk.Frame(top, bg=CARD)
         row.pack(fill="x")
@@ -3858,36 +3547,15 @@ class PDFRenameTool:
             command=self.on_move_folder_combo,
         )
         self.move_folder_combo.pack(side="left", fill="x", expand=True)
-        self.move_folder_combo.bind(
-            "<Return>", lambda _event: self.set_move_folder(self.move_folder_var.get())
-        )
+        self.move_folder_combo.bind("<Return>", lambda _event: self.set_move_folder(self.move_folder_var.get()))
 
         move_button_row = tk.Frame(top, bg=CARD)
         self.move_button_row = move_button_row
         move_button_row.pack(fill="x", pady=(4, 0))
 
-        self.button(move_button_row, "瀏覽", self.browse_move_folder, 80).pack(
-            side="left", padx=1
-        )
-        self.button(
-            move_button_row,
-            "上一層",
-            self.move_parent_folder,
-            85,
-            color=PREVIEW_BLUE,
-            hover=PRIMARY_SOFT_HOVER,
-            text_color="black",
-            border=True,
-        ).pack(side="left", padx=1)
-        self.button(
-            move_button_row,
-            "回復移動",
-            self.undo_last_move,
-            100,
-            color=YELLOW,
-            hover=YELLOW_HOVER,
-            text_color="black",
-        ).pack(side="left", padx=1)
+        self.button(move_button_row, "瀏覽", self.browse_move_folder, 80).pack(side="left", padx=1)
+        self.button(move_button_row, "上一層", self.move_parent_folder, 85, color=PREVIEW_BLUE, hover=PRIMARY_SOFT_HOVER, text_color="black", border=True).pack(side="left", padx=1)
+        self.button(move_button_row, "回復移動", self.undo_last_move, 100, color=YELLOW, hover=YELLOW_HOVER, text_color="black").pack(side="left", padx=1)
 
         body = self.card(parent)
         self.move_body_area = body
@@ -3905,30 +3573,20 @@ class PDFRenameTool:
             "modified": "修改時間",
         }
         for col, title in headers.items():
-            self.move_tree.heading(
-                col, text=title, command=lambda c=col: self.sort_move_tree(c)
-            )
+            self.move_tree.heading(col, text=title, command=lambda c=col: self.sort_move_tree(c))
 
         self.move_tree.column("name", width=360, minwidth=180, stretch=True)
         self.move_tree.column("size", width=90, minwidth=70, anchor="e", stretch=False)
-        self.move_tree.column(
-            "created", width=140, minwidth=120, anchor="center", stretch=False
-        )
-        self.move_tree.column(
-            "modified", width=140, minwidth=120, anchor="center", stretch=False
-        )
+        self.move_tree.column("created", width=140, minwidth=120, anchor="center", stretch=False)
+        self.move_tree.column("modified", width=140, minwidth=120, anchor="center", stretch=False)
 
-        y_scroll = ttk.Scrollbar(
-            tree_area, orient="vertical", command=self.move_tree.yview
-        )
+        y_scroll = ttk.Scrollbar(tree_area, orient="vertical", command=self.move_tree.yview)
         self.move_tree.configure(yscrollcommand=y_scroll.set)
         self.move_tree.pack(side="left", fill="both", expand=True)
         y_scroll.pack(side="right", fill="y")
         self.move_tree.bind("<Double-1>", self.enter_selected_move_folder)
 
-        x_scroll = ttk.Scrollbar(
-            body, orient="horizontal", command=self.move_tree.xview
-        )
+        x_scroll = ttk.Scrollbar(body, orient="horizontal", command=self.move_tree.xview)
         self.move_tree.configure(xscrollcommand=x_scroll.set)
         x_scroll.pack(fill="x", padx=0, pady=(1, 0))
 
@@ -3938,14 +3596,10 @@ class PDFRenameTool:
         bottom.configure(padx=8, pady=8)
 
         self.move_target_var = tk.StringVar(value="目的地：尚未選擇")
-        tk.Label(
-            bottom, textvariable=self.move_target_var, bg=CARD, fg=TEXT, font=FONT
-        ).pack(side="left", fill="x", expand=True)
+        tk.Label(bottom, textvariable=self.move_target_var, bg=CARD, fg=TEXT, font=FONT).pack(side="left", fill="x", expand=True)
 
     def browse_move_folder(self):
-        folder = filedialog.askdirectory(
-            initialdir=self.move_folder or self.state.folder or None
-        )
+        folder = filedialog.askdirectory(initialdir=self.move_folder or self.state.folder or None)
         if folder:
             self.set_move_folder(folder)
 
@@ -3973,19 +3627,12 @@ class PDFRenameTool:
 
     def load_move_tree(self):
         self.move_tree.delete(*self.move_tree.get_children())
-        for item in list_directory_items(
-            self.move_folder, self.move_sort_column, self.move_sort_reverse
-        ):
+        for item in list_directory_items(self.move_folder, self.move_sort_column, self.move_sort_reverse):
             icon_name = f"📁 {item['name']}" if item["is_dir"] else f"📄 {item['name']}"
             size_text = "<資料夾>" if item["is_dir"] else format_file_size(item["size"])
             created = format_timestamp(item["created"])
             modified = format_timestamp(item["modified"])
-            self.move_tree.insert(
-                "",
-                "end",
-                values=(icon_name, size_text, created, modified),
-                tags=(item["path"], "dir" if item["is_dir"] else "file"),
-            )
+            self.move_tree.insert("", "end", values=(icon_name, size_text, created, modified), tags=(item["path"], "dir" if item["is_dir"] else "file"))
 
     def sort_move_tree(self, column):
         self.move_sort_column, self.move_sort_reverse = toggle_sort(
@@ -4096,11 +3743,7 @@ class PDFRenameTool:
         if not text or OCR_PLACEHOLDER in text:
             return
 
-        value = (
-            normalize_receive_date(text)
-            if field == "收文日期"
-            else clean_one_line(text)
-        )
+        value = normalize_receive_date(text) if field == "收文日期" else clean_one_line(text)
         self.vars[field].set(value)
 
     # =====================================================
@@ -4120,9 +3763,7 @@ class PDFRenameTool:
     def load_pdfs(self):
         self.tree.delete(*self.tree.get_children())
 
-        pdfs = list_pdf_files(
-            self.state.folder, self.state.sort_column, self.state.sort_reverse
-        )
+        pdfs = list_pdf_files(self.state.folder, self.state.sort_column, self.state.sort_reverse)
 
         for index, (filename, added) in enumerate(pdfs, start=1):
             date_text = format_timestamp(added)
@@ -4144,9 +3785,7 @@ class PDFRenameTool:
             return
 
         self.state.selected_pdf = values[1]
-        self.state.current_pdf_path = str(
-            Path(self.state.folder) / self.state.selected_pdf
-        )
+        self.state.current_pdf_path = str(Path(self.state.folder) / self.state.selected_pdf)
         self.state.current_page = 0
 
         self.open_pdf(self.state.current_pdf_path)
@@ -4185,13 +3824,7 @@ class PDFRenameTool:
             self.preview_pil_img = img
             self.preview_img = ImageTk.PhotoImage(img)
 
-            self.canvas.create_image(
-                IMAGE_OFFSET,
-                IMAGE_OFFSET,
-                anchor="nw",
-                image=self.preview_img,
-                tags=("pdf_image",),
-            )
+            self.canvas.create_image(IMAGE_OFFSET, IMAGE_OFFSET, anchor="nw", image=self.preview_img, tags=("pdf_image",))
             self.canvas.config(scrollregion=self.canvas.bbox("all"))
 
             self.page_var.set(f"{self.state.current_page + 1} / {len(self.pdf_doc)}")
@@ -4209,9 +3842,7 @@ class PDFRenameTool:
         canvas_width = max(self.canvas.winfo_width(), 220)
         canvas_height = max(self.canvas.winfo_height(), 220)
         zoom_w = max(MIN_ZOOM, (canvas_width - IMAGE_OFFSET * 2 - 24) / page.rect.width)
-        zoom_h = max(
-            MIN_ZOOM, (canvas_height - IMAGE_OFFSET * 2 - 24) / page.rect.height
-        )
+        zoom_h = max(MIN_ZOOM, (canvas_height - IMAGE_OFFSET * 2 - 24) / page.rect.height)
         self.state.zoom = min(zoom_w, zoom_h, MAX_ZOOM)
         self._auto_fit_preview = True
         self.show_preview()
@@ -4275,9 +3906,7 @@ class PDFRenameTool:
             self.canvas.delete(self.ocr_rect_id)
 
         x, y = self.ocr_start
-        self.ocr_rect_id = self.canvas.create_rectangle(
-            x, y, x, y, outline=PRIMARY, width=2, dash=(4, 2)
-        )
+        self.ocr_rect_id = self.canvas.create_rectangle(x, y, x, y, outline=PRIMARY, width=2, dash=(4, 2))
 
     def move_ocr_select(self, event):
         if not self.ocr_start or not self.ocr_rect_id:
@@ -4350,19 +3979,17 @@ class PDFRenameTool:
 
         finally:
             if crop_img is not None:
-                with suppress(Exception):
+                try:
                     crop_img.close()
+                except Exception:
+                    pass
             gc.collect()
 
     # =====================================================
     # Rename
     # =====================================================
     def update_preview(self, *_args):
-        base_parts = [
-            self.vars["發文單位"].get(),
-            self.vars["文號"].get(),
-            self.vars["主旨"].get(),
-        ]
+        base_parts = [self.vars["發文單位"].get(), self.vars["文號"].get(), self.vars["主旨"].get()]
         base = "_".join(part for part in base_parts if part)
 
         extra = [self.vars["收文號碼"].get(), self.vars["收文日期"].get()]
@@ -4372,11 +3999,7 @@ class PDFRenameTool:
         self.preview_var.set(safe_pdf_filename(filename))
 
         prefix = self.vars["增加前名"].get()
-        self.prefix_var.set(
-            f"{prefix}_{self.state.selected_pdf}"
-            if prefix and self.state.selected_pdf
-            else ""
-        )
+        self.prefix_var.set(f"{prefix}_{self.state.selected_pdf}" if prefix and self.state.selected_pdf else "")
 
     def rename_file(self, new_name):
         new_name = safe_pdf_filename(new_name)
@@ -4429,9 +4052,7 @@ class PDFRenameTool:
         deleted_path = recycle / self.state.selected_pdf
 
         if deleted_path.exists():
-            messagebox.showerror(
-                "錯誤", f"暫存刪除區已有同名檔案：\n{deleted_path.name}"
-            )
+            messagebox.showerror("錯誤", f"暫存刪除區已有同名檔案：\n{deleted_path.name}")
             return
 
         try:
@@ -4451,9 +4072,7 @@ class PDFRenameTool:
 
         try:
             if original_path.exists():
-                messagebox.showerror(
-                    "錯誤", f"原位置已有同名檔案：\n{original_path.name}"
-                )
+                messagebox.showerror("錯誤", f"原位置已有同名檔案：\n{original_path.name}")
                 return
 
             deleted_path.rename(original_path)
@@ -4468,7 +4087,7 @@ class PDFRenameTool:
 # Run
 # =========================================================
 def run_app():
-    if load_tkinterdnd():
+    if HAS_DND:
         try:
             root = TkinterDnD.Tk()
         except Exception:
@@ -4482,7 +4101,7 @@ def run_app():
     except Exception:
         root = tk.Tk()
 
-    _app = PDFRenameTool(root)
+    app = PDFRenameTool(root)
     root.mainloop()
 
 
@@ -4503,7 +4122,8 @@ if __name__ == "__main__":
             temp_root.withdraw()
             messagebox.showerror(
                 "程式啟動失敗",
-                "程式發生錯誤，已產生 pdfname_error_log.txt。\n\n" + error_text[-2000:],
+                "程式發生錯誤，已產生 pdfname_error_log.txt。\n\n"
+                + error_text[-2000:]
             )
             temp_root.destroy()
         except Exception:

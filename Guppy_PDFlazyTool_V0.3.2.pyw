@@ -12,7 +12,6 @@
 #         外部 OCR 與 DLL 搜尋路徑修正，根目錄只保留最新版程式入口。
 # V0.3.1  補強 Nuitka exe 相容性，改善 frozen 缺套件提示與 OCR 外掛錯誤訊息。
 # V0.3.2  修正第一分頁低解析度預覽工具列遮蔽，恢復第三分頁 PDF 拖曳開啟。
-# V0.3.3  加速 Nuitka 編譯：拖曳套件改動態載入，補充 no-follow 編譯設定。
 #
 # 建議安裝：
 # pip install customtkinter PyMuPDF pillow numpy tkinterdnd2
@@ -435,7 +434,7 @@ warnings.filterwarnings("ignore", message=".*Preferred drawing method.*")
 ctk.set_appearance_mode("light")
 ctk.set_default_color_theme("blue")
 
-APP_VERSION = "0.3.3"
+APP_VERSION = "0.3.2"
 APP_TITLE = f"Guppy PDF手搓工具 V{APP_VERSION}"
 
 BG = "#EEF2F7"
@@ -855,36 +854,20 @@ class OCREngine:
 import tempfile
 from io import BytesIO
 
-# Drag-and-drop is optional and loaded dynamically.  Keeping tkinterdnd2 out of
-# top-level imports prevents Nuitka from statically following it during builds.
-DND_FILES = None
-TkinterDnD = None
-HAS_DND = False
-_DND_LOAD_ATTEMPTED = False
+# Drag-and-drop is optional.  Do not auto-install it at startup because that
+# makes .pyw double-click opening feel slow.  If it is already installed, use it;
+# otherwise the browse buttons still work normally.
+try:
+    from tkinterdnd2 import DND_FILES, TkinterDnD
 
-
-def load_tkinterdnd() -> bool:
-    global DND_FILES, TkinterDnD, HAS_DND, _DND_LOAD_ATTEMPTED
-    if HAS_DND and DND_FILES is not None and TkinterDnD is not None:
-        return True
-    if _DND_LOAD_ATTEMPTED:
-        return False
-
-    _DND_LOAD_ATTEMPTED = True
-    try:
-        module = importlib.import_module("tkinterdnd2")
-        DND_FILES = getattr(module, "DND_FILES")
-        TkinterDnD = getattr(module, "TkinterDnD")
-        HAS_DND = True
-        return True
-    except Exception:
-        DND_FILES = None
-        TkinterDnD = None
-        HAS_DND = False
-        append_startup_log(
-            "未載入 tkinterdnd2，拖曳功能停用；可手動安裝：pip install tkinterdnd2"
-        )
-        return False
+    HAS_DND = True
+except Exception:
+    DND_FILES = None
+    TkinterDnD = None
+    HAS_DND = False
+    append_startup_log(
+        "未載入 tkinterdnd2，拖曳功能停用；可手動安裝：pip install tkinterdnd2"
+    )
 
 WATERMARK_APP_VERSION = "V1.0.8"
 WATERMARK_APP_TITLE = f"PDF浮水印註記工具 {WATERMARK_APP_VERSION}"
@@ -1744,7 +1727,7 @@ class PDFWatermarkApp:
             self.root.after(delay, recenter_once)
 
     def setup_drag_drop(self):
-        if not load_tkinterdnd():
+        if not HAS_DND:
             return
 
         widgets = [
@@ -2274,7 +2257,7 @@ class BaseTab(ttk.Frame):
         return None
 
     def enable_drop(self, widget, callback):
-        if not load_tkinterdnd() or DND_FILES is None:
+        if DND_FILES is None:
             return
         try:
             if not hasattr(widget, "drop_target_register") or not hasattr(
@@ -4468,7 +4451,7 @@ class PDFRenameTool:
 # Run
 # =========================================================
 def run_app():
-    if load_tkinterdnd():
+    if HAS_DND:
         try:
             root = TkinterDnD.Tk()
         except Exception:

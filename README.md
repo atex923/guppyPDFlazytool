@@ -2,19 +2,30 @@
 
 `Guppy_PDFlazyTool` is a desktop PDF utility for Windows/macOS Python environments.
 
-Current version: `V0.2.7`
+Current version: `V0.3.3`
 
 ## Latest main program
 
 Use these root-level files for the latest version:
 
-- `Guppy_PDFlazyTool.pyw`: latest no-console desktop launcher/source
+- `Guppy_PDFlazyTool.pyw`: latest no-console desktop launcher
+- `Guppy_PDFlazyTool_V0.3.3.pyw`: versioned standalone no-console source
+- `Guppy_PDFlazyTool_V0.3.3.py`: versioned Python source
 - `Guppy_PDFlazyTool.py`: latest Python source
 
-Versioned archive files are also kept:
+The root `Guppy_PDFlazyTool.pyw` file is a lightweight no-console launcher
+that imports and runs `Guppy_PDFlazyTool.py`. Keep feature edits in
+`Guppy_PDFlazyTool.py`, then regenerate the versioned `.pyw` for standalone
+delivery.
 
-- `Guppy_PDFlazyTool_V0.2.7.pyw`
-- `Guppy_PDFlazyTool_V0.2.7.py`
+Older version-numbered full-source files are kept in `archive/`. Older Git
+snapshots that used the `V0.3.x` number before this release are kept in
+`archive/legacy_git/` so the current `V0.3.x` release line remains the canonical
+version.
+
+OCR engines are loaded externally at runtime. For Nuitka onefile builds, keep
+OCR packages beside the app in `ocr_packages`, `external_packages`, or
+`site-packages`.
 
 ## Included tools
 
@@ -26,9 +37,12 @@ Versioned archive files are also kept:
 ## Files
 
 - `Guppy_PDFlazyTool.py`: stable latest Python source
-- `Guppy_PDFlazyTool.pyw`: stable latest no-console launcher/source
-- `Guppy_PDFlazyTool_V0.2.7.py`: versioned Python source
-- `Guppy_PDFlazyTool_V0.2.7.pyw`: versioned no-console launcher/source
+- `Guppy_PDFlazyTool.pyw`: stable latest no-console launcher
+- `Guppy_PDFlazyTool_V0.3.3.py`: versioned Python source for V0.3.3
+- `Guppy_PDFlazyTool_V0.3.3.pyw`: standalone no-console source for V0.3.3
+- `archive/`: historical full-source version snapshots moved out of the root
+- `NUITKA_FAST_BUILD.md`: notes for faster Nuitka builds
+- `build_nuitka_fast.cmd`: Windows example build command
 
 ## Suggested dependencies
 
@@ -43,6 +57,12 @@ pip install paddleocr paddlepaddle
 pip install rapidocr-onnxruntime
 pip install easyocr
 ```
+
+## Nuitka build
+
+For faster exe builds, see `NUITKA_FAST_BUILD.md`. The recommended fast path
+keeps OCR engines external and prevents Nuitka from following large optional
+packages during compilation.
 
 ## Git history
 
