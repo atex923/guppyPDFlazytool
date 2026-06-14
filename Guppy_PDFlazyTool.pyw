@@ -1,13 +1,13 @@
 # -*- coding: utf-8 -*-
 """No-console launcher for Guppy_PDFlazyTool.py.
 
-Original source version: V0.3.1
+Original source version: V0.3.2
 
 Keep the implementation in Guppy_PDFlazyTool.py so the .py and .pyw entry
 points do not drift apart.
 """
 
-ORIGINAL_VERSION = "V0.3.1"
+ORIGINAL_VERSION = "V0.3.2"
 
 
 if __name__ == "__main__":

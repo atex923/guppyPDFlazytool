@@ -2,14 +2,14 @@
 
 `Guppy_PDFlazyTool` is a desktop PDF utility for Windows/macOS Python environments.
 
-Current version: `V0.3.1`
+Current version: `V0.3.2`
 
 ## Latest main program
 
 Use these root-level files for the latest version:
 
 - `Guppy_PDFlazyTool.pyw`: latest no-console desktop launcher
-- `Guppy_PDFlazyTool_V0.3.1.pyw`: versioned standalone no-console source
+- `Guppy_PDFlazyTool_V0.3.2.pyw`: versioned standalone no-console source
 - `Guppy_PDFlazyTool.py`: latest Python source
 
 The root `Guppy_PDFlazyTool.pyw` file is a lightweight no-console launcher
@@ -37,7 +37,7 @@ OCR packages beside the app in `ocr_packages`, `external_packages`, or
 
 - `Guppy_PDFlazyTool.py`: stable latest Python source
 - `Guppy_PDFlazyTool.pyw`: stable latest no-console launcher
-- `Guppy_PDFlazyTool_V0.3.1.pyw`: standalone no-console source for V0.3.1
+- `Guppy_PDFlazyTool_V0.3.2.pyw`: standalone no-console source for V0.3.2
 - `archive/`: historical full-source version snapshots moved out of the root
 
 ## Suggested dependencies

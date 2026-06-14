@@ -1,5 +1,10 @@
 # Changelog
 
+## V0.3.2
+
+- Fixes the first tab preview toolbar on low-resolution displays by separating page/zoom controls from OCR controls.
+- Restores watermark-tab PDF drag-and-drop by registering all watermark subwidgets and rebinding when the tab is shown.
+
 ## V0.3.1
 
 - Explicitly imports `tkinter.font` so Nuitka folder builds include the module needed by externally loaded `customtkinter`.
