@@ -2,7 +2,7 @@
 
 This folder keeps version-numbered full-source snapshots moved out of the
 repository root. The root folder should contain only the latest versioned
-standalone source.
+standalone sources.
 
 ## Canonical History
 
@@ -24,6 +24,11 @@ standalone source.
 - `Guppy_PDFlazyTool_V0.2.19.pyw`
 - `Guppy_PDFlazyTool_V0.2.20.pyw`
 - `Guppy_PDFlazyTool_V0.3.0.pyw`
+- `Guppy_PDFlazyTool_V0.3.1.pyw`
+- `Guppy_PDFlazyTool_V0.3.2.py`
+- `Guppy_PDFlazyTool_V0.3.2.pyw`
+- `Guppy_PDFlazyTool_V0.3.3.py`
+- `Guppy_PDFlazyTool_V0.3.3.pyw`
 
 ## Legacy Git Snapshots
 
@@ -38,4 +43,5 @@ release line.
 
 - `../Guppy_PDFlazyTool.py`
 - `../Guppy_PDFlazyTool.pyw`
-- `../Guppy_PDFlazyTool_V0.3.1.pyw`
+- `../Guppy_PDFlazyTool_V0.3.3.4.py`
+- `../Guppy_PDFlazyTool_V0.3.3.4.pyw`
