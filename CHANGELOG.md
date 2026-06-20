@@ -1,5 +1,11 @@
 # Changelog
 
+## V0.3.3.4
+
+- Promotes the zip-provided `V0.3.3.4` source as the current main program.
+- Fixes OCR cleanup in `recognize()` by guarding `arr` deletion with `contextlib.suppress`.
+- Keeps the `V0.3.3.1` to `V0.3.3.3` code optimizations, startup dependency fix, and cleanup changes.
+
 ## V0.3.3
 
 - Speeds up Nuitka compilation by loading `tkinterdnd2` dynamically instead of statically importing it.

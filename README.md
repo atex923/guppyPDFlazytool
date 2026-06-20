@@ -2,15 +2,15 @@
 
 `Guppy_PDFlazyTool` is a desktop PDF utility for Windows/macOS Python environments.
 
-Current version: `V0.3.3`
+Current version: `V0.3.3.4`
 
 ## Latest main program
 
 Use these root-level files for the latest version:
 
 - `Guppy_PDFlazyTool.pyw`: latest no-console desktop launcher
-- `Guppy_PDFlazyTool_V0.3.3.pyw`: versioned standalone no-console source
-- `Guppy_PDFlazyTool_V0.3.3.py`: versioned Python source
+- `Guppy_PDFlazyTool_V0.3.3.4.pyw`: versioned standalone no-console source
+- `Guppy_PDFlazyTool_V0.3.3.4.py`: versioned Python source
 - `Guppy_PDFlazyTool.py`: latest Python source
 
 The root `Guppy_PDFlazyTool.pyw` file is a lightweight no-console launcher
@@ -38,8 +38,8 @@ OCR packages beside the app in `ocr_packages`, `external_packages`, or
 
 - `Guppy_PDFlazyTool.py`: stable latest Python source
 - `Guppy_PDFlazyTool.pyw`: stable latest no-console launcher
-- `Guppy_PDFlazyTool_V0.3.3.py`: versioned Python source for V0.3.3
-- `Guppy_PDFlazyTool_V0.3.3.pyw`: standalone no-console source for V0.3.3
+- `Guppy_PDFlazyTool_V0.3.3.4.py`: versioned Python source for V0.3.3.4
+- `Guppy_PDFlazyTool_V0.3.3.4.pyw`: standalone no-console source for V0.3.3.4
 - `archive/`: historical full-source version snapshots moved out of the root
 - `NUITKA_FAST_BUILD.md`: notes for faster Nuitka builds
 - `build_nuitka_fast.cmd`: Windows example build command
@@ -66,6 +66,7 @@ packages during compilation.
 
 ## Git history
 
+- `453d232` - Merge V0.3.3 into main
 - `45c43d0` - Add Guppy PDF lazy tool v0.2.3
 - `6f9d418` - Initial commit
 
