@@ -1,0 +1,7 @@
+PyMuPDF
+Pillow
+customtkinter
+tkinterdnd2
+rapidocr-onnxruntime
+opencc-python-reimplemented
+pywin32; platform_system == "Windows"

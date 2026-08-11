@@ -1,5 +1,13 @@
 # Changelog
 
+## V1.1.5
+
+- Promotes the Codex handoff package as the current main program.
+- Adds the expanded desktop workflow: PDF rename/OCR, batch move, watermark annotation, rotate/compress/merge/page editing, universal conversion, and PPT 4-up output.
+- Supports batch move partial success with duplicate-file skipping and batch undo.
+- Supports ODT, TIFF, PowerPoint, Word, and TXT conversion to PDF with preview.
+- Improves conversion reliability by adding macOS LibreOffice discovery, ignoring zero-byte PDF outputs, and checking source-folder LibreOffice fallbacks for document conversion.
+
 ## V0.3.3.4
 
 - Promotes the zip-provided `V0.3.3.4` source as the current main program.

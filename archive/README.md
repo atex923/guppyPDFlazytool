@@ -29,6 +29,8 @@ standalone sources.
 - `Guppy_PDFlazyTool_V0.3.2.pyw`
 - `Guppy_PDFlazyTool_V0.3.3.py`
 - `Guppy_PDFlazyTool_V0.3.3.pyw`
+- `Guppy_PDFlazyTool_V0.3.3.4.py`
+- `Guppy_PDFlazyTool_V0.3.3.4.pyw`
 
 ## Legacy Git Snapshots
 
@@ -43,5 +45,5 @@ release line.
 
 - `../Guppy_PDFlazyTool.py`
 - `../Guppy_PDFlazyTool.pyw`
-- `../Guppy_PDFlazyTool_V0.3.3.4.py`
-- `../Guppy_PDFlazyTool_V0.3.3.4.pyw`
+- `../Guppy_PDFlazyTool_V1.1.5.py`
+- `../Guppy_PDFlazyTool_V1.1.5.pyw`
