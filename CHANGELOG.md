@@ -1,5 +1,11 @@
 # Changelog
 
+## V1.1.6
+
+- Bumps the release version for cloud-drive organization.
+- Keeps V1.1.5 program behavior and adds a documented release-folder sync layout for Google Drive handoff copies.
+- Keeps only the latest versioned files in the repository root and groups archived versions into per-version folders.
+
 ## V1.1.5
 
 - Promotes the Codex handoff package as the current main program.

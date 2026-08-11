@@ -2,7 +2,7 @@
 
 `Guppy_PDFlazyTool` 是一套繁體中文桌面 PDF 手作工具，整合 PDF 更名、搬移、浮水印註記、頁面旋轉壓縮合併裁切，以及 Office/圖片文件轉 PDF 工作流。
 
-Current version: `V1.1.5`
+Current version: `V1.1.6`
 
 ## 程式特色
 
@@ -28,8 +28,8 @@ Use these root-level files for the latest version:
 
 - `Guppy_PDFlazyTool.pyw`: latest no-console desktop launcher
 - `Guppy_PDFlazyTool.py`: latest Python source
-- `Guppy_PDFlazyTool_V1.1.5.pyw`: versioned standalone no-console source
-- `Guppy_PDFlazyTool_V1.1.5.py`: versioned Python source
+- `Guppy_PDFlazyTool_V1.1.6.pyw`: versioned standalone no-console source
+- `Guppy_PDFlazyTool_V1.1.6.py`: versioned Python source
 
 Older version-numbered full-source files are kept in `archive/`. Older Git snapshots that used the `V0.3.x` number before this release are kept in `archive/legacy_git/`.
 
@@ -64,11 +64,15 @@ For faster exe builds, see `NUITKA_FAST_BUILD.md`. The recommended fast path kee
 
 - `Guppy_PDFlazyTool.py`: stable latest Python source
 - `Guppy_PDFlazyTool.pyw`: stable latest no-console launcher
-- `Guppy_PDFlazyTool_V1.1.5.py`: versioned Python source for V1.1.5
-- `Guppy_PDFlazyTool_V1.1.5.pyw`: standalone no-console source for V1.1.5
+- `Guppy_PDFlazyTool_V1.1.6.py`: versioned Python source for V1.1.6
+- `Guppy_PDFlazyTool_V1.1.6.pyw`: standalone no-console source for V1.1.6
 - `requirements.txt`: Python dependencies
-- `archive/`: historical full-source version snapshots moved out of the root
+- `archive/`: historical full-source version snapshots grouped by version folder
 - `NUITKA_FAST_BUILD.md`: notes for faster Nuitka builds
 - `build_nuitka_fast.cmd`: Windows example build command
+
+## Google Drive Release Folders
+
+Google Drive handoff copies are organized under `12.Codex/Guppy_PDFlazyTool_versions/`. Each version keeps its own folder, for example `V1.1.6/`, with the matching `.py` and `.pyw` files. The `12.Codex` root may also keep the latest launcher and source for quick access.
 
 See `CHANGELOG.md` for version history.

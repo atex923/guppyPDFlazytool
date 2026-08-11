@@ -1,49 +1,42 @@
 # Version Archive
 
-This folder keeps version-numbered full-source snapshots moved out of the
-repository root. The root folder should contain only the latest versioned
-standalone sources.
+This folder keeps older version-numbered Guppy PDF handoff files out of the repository root.
 
-## Canonical History
-
-- `Guppy_PDFlazyTool_V0.2.3.py`
-- `Guppy_PDFlazyTool_V0.2.3.pyw`
-- `Guppy_PDFlazyTool_V0.2.7.py`
-- `Guppy_PDFlazyTool_V0.2.7.pyw`
-- `Guppy_PDFlazyTool_V0.2.7_standalone.pyw`
-- `Guppy_PDFlazyTool_V0.2.8.pyw`
-- `Guppy_PDFlazyTool_V0.2.9.pyw`
-- `Guppy_PDFlazyTool_V0.2.11.pyw`
-- `Guppy_PDFlazyTool_V0.2.12.pyw`
-- `Guppy_PDFlazyTool_V0.2.13.pyw`
-- `Guppy_PDFlazyTool_V0.2.14.pyw`
-- `Guppy_PDFlazyTool_V0.2.15.pyw`
-- `Guppy_PDFlazyTool_V0.2.16.pyw`
-- `Guppy_PDFlazyTool_V0.2.17.pyw`
-- `Guppy_PDFlazyTool_V0.2.18.pyw`
-- `Guppy_PDFlazyTool_V0.2.19.pyw`
-- `Guppy_PDFlazyTool_V0.2.20.pyw`
-- `Guppy_PDFlazyTool_V0.3.0.pyw`
-- `Guppy_PDFlazyTool_V0.3.1.pyw`
-- `Guppy_PDFlazyTool_V0.3.2.py`
-- `Guppy_PDFlazyTool_V0.3.2.pyw`
-- `Guppy_PDFlazyTool_V0.3.3.py`
-- `Guppy_PDFlazyTool_V0.3.3.pyw`
-- `Guppy_PDFlazyTool_V0.3.3.4.py`
-- `Guppy_PDFlazyTool_V0.3.3.4.pyw`
-
-## Legacy Git Snapshots
-
-Older Git files that previously used `V0.3.x` numbering are retained for
-reference in `legacy_git/`, but they are not the canonical current `V0.3.x`
-release line.
-
-- `legacy_git/Guppy_PDFlazyTool_V0.3.0.pyw`
-- `legacy_git/Guppy_PDFlazyTool_V0.3.1.pyw`
-
-## Current Files
+The repository root should contain only the latest versioned sources:
 
 - `../Guppy_PDFlazyTool.py`
 - `../Guppy_PDFlazyTool.pyw`
-- `../Guppy_PDFlazyTool_V1.1.5.py`
-- `../Guppy_PDFlazyTool_V1.1.5.pyw`
+- `../Guppy_PDFlazyTool_V1.1.6.py`
+- `../Guppy_PDFlazyTool_V1.1.6.pyw`
+
+## Layout
+
+Each historical version is stored in its own folder:
+
+- `V0.2.3/`
+- `V0.2.7/`
+- `V0.2.8/`
+- `V0.2.9/`
+- `V0.2.11/`
+- `V0.2.12/`
+- `V0.2.13/`
+- `V0.2.14/`
+- `V0.2.15/`
+- `V0.2.16/`
+- `V0.2.17/`
+- `V0.2.18/`
+- `V0.2.19/`
+- `V0.2.20/`
+- `V0.3.0/`
+- `V0.3.1/`
+- `V0.3.2/`
+- `V0.3.3/`
+- `V0.3.3.4/`
+- `V1.1.5/`
+
+## Legacy Git Snapshots
+
+Older Git files that previously used `V0.3.x` numbering are retained for reference in `legacy_git/`, also split by version folder:
+
+- `legacy_git/V0.3.0/`
+- `legacy_git/V0.3.1/`
