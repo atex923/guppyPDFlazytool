@@ -5,3 +5,4 @@ tkinterdnd2
 rapidocr-onnxruntime
 opencc-python-reimplemented
 pywin32; platform_system == "Windows"
+pystray; platform_system == "Windows"

@@ -1,5 +1,10 @@
 # Changelog
 
+## V1.1.7
+
+- Adds a Windows-only minimize-to-system-tray option using `pystray`.
+- The tray menu can restore the main window or exit the application.
+
 ## V1.1.6
 
 - Bumps the release version for cloud-drive organization.
