@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 # =========================================================
-# Guppy PDF手搓工具 V1.2.0
+# Guppy PDF手搓工具 V1.1.10
 # =========================================================
 # 程式歷史摘要：
 # 說明：第一碼或第二碼進版時，本區整併為該碼號的改版重點；
@@ -65,7 +65,6 @@
 # V1.1.8   Windows 專用：最小化恢復到工具列，改由視窗「.」按鈕手動隱藏到系統匣。
 # V1.1.9   系統匣按鈕一律顯示，按鈕尺寸與字體加大；非 Windows 點擊時顯示限制提示。
 # V1.1.10  系統匣「.」按鈕移到右側更名標籤上方；固定最上層改為右側標籤欄底部按鈕。
-# V1.2.0   正式版號升級：承接 V1.1.10 右側分頁欄系統匣與固定最上層按鈕配置。
 #
 # 建議安裝：
 # pip install customtkinter PyMuPDF pillow numpy tkinterdnd2
@@ -479,7 +478,7 @@ ImageFont = LazyImport("PIL.ImageFont", "pillow")
 ctk.set_appearance_mode("light")
 ctk.set_default_color_theme("blue")
 
-APP_VERSION = "1.2.0"
+APP_VERSION = "1.1.10"
 APP_TITLE = f"Guppy PDF手搓工具 V{APP_VERSION}"
 
 BG = "#EEF2F7"

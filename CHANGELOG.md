@@ -1,5 +1,17 @@
 # Changelog
 
+## V1.2.0
+
+- Promotes the tray-button and topmost-button layout update as the V1.2.0 release line.
+- Keeps the `.` system-tray hide button above the right-side rename tab.
+- Keeps the fixed-topmost control at the bottom of the right-side tab bar.
+
+## V1.1.10
+
+- Moves the `.` system-tray hide button to the top of the right-side tab bar, above the rename tab.
+- Moves the fixed-topmost control to the bottom of the right-side tab bar.
+- Keeps normal minimize behavior on the Windows taskbar.
+
 ## V1.1.9
 
 - Makes the `.` tray button always visible in the footer.
