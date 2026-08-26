@@ -1,5 +1,10 @@
 # Changelog
 
+## V1.1.8
+
+- Restores normal window minimize behavior to the Windows taskbar.
+- Changes tray hiding to an explicit Windows-only `.` button in the footer.
+
 ## V1.1.7
 
 - Adds a Windows-only minimize-to-system-tray option using `pystray`.

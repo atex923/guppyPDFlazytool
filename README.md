@@ -2,7 +2,7 @@
 
 `Guppy_PDFlazyTool` 是一套繁體中文桌面 PDF 手作工具，整合 PDF 更名、搬移、浮水印註記、頁面旋轉壓縮合併裁切，以及 Office/圖片文件轉 PDF 工作流。
 
-Current version: `V1.1.7`
+Current version: `V1.1.8`
 
 ## 程式特色
 
@@ -13,7 +13,7 @@ Current version: `V1.1.7`
 - 轉換氣體：支援 PowerPoint、Word、TXT、ODT、TIF/TIFF 轉 PDF，並提供右側 PDF 預覽。
 - PPT 轉 4 格：可將簡報轉為一般 PDF 後再排成 2x2 四格版面。
 - 視窗操作：支援固定最上層，Windows 最大化會避開工作列可用區域。
-- Windows 系統匣：可勾選最小化到系統匣，從系統匣選單顯示或結束程式。
+- Windows 系統匣：視窗右下角 `.` 按鈕可隱藏到系統匣；一般最小化維持縮到工具列。
 - 封裝友善：OCR 與大型選用套件採延遲/外部載入，降低 Nuitka 編譯負擔。
 
 ## 支援格式
@@ -29,8 +29,8 @@ Use these root-level files for the latest version:
 
 - `Guppy_PDFlazyTool.pyw`: latest no-console desktop launcher
 - `Guppy_PDFlazyTool.py`: latest Python source
-- `Guppy_PDFlazyTool_V1.1.7.pyw`: versioned standalone no-console source
-- `Guppy_PDFlazyTool_V1.1.7.py`: versioned Python source
+- `Guppy_PDFlazyTool_V1.1.8.pyw`: versioned standalone no-console source
+- `Guppy_PDFlazyTool_V1.1.8.py`: versioned Python source
 
 Older version-numbered full-source files are kept in `archive/`. Older Git snapshots that used the `V0.3.x` number before this release are kept in `archive/legacy_git/`.
 
@@ -65,8 +65,8 @@ For faster exe builds, see `NUITKA_FAST_BUILD.md`. The recommended fast path kee
 
 - `Guppy_PDFlazyTool.py`: stable latest Python source
 - `Guppy_PDFlazyTool.pyw`: stable latest no-console launcher
-- `Guppy_PDFlazyTool_V1.1.7.py`: versioned Python source for V1.1.7
-- `Guppy_PDFlazyTool_V1.1.7.pyw`: standalone no-console source for V1.1.7
+- `Guppy_PDFlazyTool_V1.1.8.py`: versioned Python source for V1.1.8
+- `Guppy_PDFlazyTool_V1.1.8.pyw`: standalone no-console source for V1.1.8
 - `requirements.txt`: Python dependencies
 - `archive/`: historical full-source version snapshots grouped by version folder
 - `NUITKA_FAST_BUILD.md`: notes for faster Nuitka builds
@@ -74,6 +74,6 @@ For faster exe builds, see `NUITKA_FAST_BUILD.md`. The recommended fast path kee
 
 ## Google Drive Release Folders
 
-Google Drive handoff copies are organized under `12.Codex/Guppy_PDFlazyTool_versions/`. Each version keeps its own folder, for example `V1.1.7/`, with the matching `.py` and `.pyw` files. The `12.Codex` root may also keep the latest launcher and source for quick access.
+Google Drive handoff copies are organized under `12.Codex/Guppy_PDFlazyTool_versions/`. Each version keeps its own folder, for example `V1.1.8/`, with the matching `.py` and `.pyw` files. The `12.Codex` root may also keep the latest launcher and source for quick access.
 
 See `CHANGELOG.md` for version history.
