@@ -1,5 +1,10 @@
 # Changelog
 
+## V1.1.9
+
+- Makes the `.` tray button always visible in the footer.
+- Keeps tray hiding Windows-only and shows an explicit notice on non-Windows systems.
+
 ## V1.1.8
 
 - Restores normal window minimize behavior to the Windows taskbar.
