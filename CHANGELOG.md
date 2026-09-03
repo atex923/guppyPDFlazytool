@@ -1,5 +1,20 @@
 # Changelog
 
+## V1.4.0
+
+- Adds a bottom-right right-rotate button to every page card in the page-edit tool.
+- Updates only the affected page thumbnail and label after right rotation to reduce full-window flicker.
+- Keeps every page card thumbnail area fixed-size so rotated pages do not resize the card layout.
+- Stores page-edit rotation in undo snapshots.
+- Applies page-edit rotation when exporting edited PDFs, quick page ranges, and extracted PDFs.
+
+## V1.3.0
+
+- Adds batch status counters to the Convert Gas tab: selected or dropped file count, successful conversions, and failed conversions.
+- Keeps multi-file drag-and-drop conversion for supported Office, text, ODT, and TIFF files.
+- Adds thumbnail/list view switching to the merge-page tool.
+- Adds filename sorting plus selected-file move up/down controls in merge list view.
+
 ## V1.2.0
 
 - Promotes the tray-button and topmost-button layout update as the V1.2.0 release line.

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 # =========================================================
-# Guppy PDF手搓工具 V1.4.0
+# Guppy PDF手搓工具 V1.3.0
 # =========================================================
 # 程式歷史摘要：
 # 說明：第一碼或第二碼進版時，本區整併為該碼號的改版重點；
@@ -67,7 +67,6 @@
 # V1.1.10  系統匣「.」按鈕移到右側更名標籤上方；固定最上層改為右側標籤欄底部按鈕。
 # V1.2.0   正式版號升級：承接 V1.1.10 右側分頁欄系統匣與固定最上層按鈕配置。
 # V1.3.0   轉換氣體支援批次拖曳統計；頁面合併新增清單/縮圖顯示、檔名排序與上下移動。
-# V1.4.0   頁面編輯每頁新增右下角右轉鈕；右轉只刷新單頁固定縮圖框，降低整個視窗閃爍。
 #
 # 建議安裝：
 # pip install customtkinter PyMuPDF pillow numpy tkinterdnd2
@@ -481,7 +480,7 @@ ImageFont = LazyImport("PIL.ImageFont", "pillow")
 ctk.set_appearance_mode("light")
 ctk.set_default_color_theme("blue")
 
-APP_VERSION = "1.4.0"
+APP_VERSION = "1.3.0"
 APP_TITLE = f"Guppy PDF手搓工具 V{APP_VERSION}"
 
 BG = "#EEF2F7"
@@ -3529,14 +3528,12 @@ class EditTab(BaseTab):
         delete=False,
         extract=False,
         blank=False,
-        rotation=0,
     ):
         return {
             "path": path,
             "index": index,
             "inserted": inserted,
             "blank": blank,
-            "rotation": rotation % 360,
             "delete": tk.BooleanVar(value=delete),
             "extract": tk.BooleanVar(value=extract),
         }
@@ -3569,7 +3566,6 @@ class EditTab(BaseTab):
                     "index": item["index"],
                     "inserted": item["inserted"],
                     "blank": item.get("blank", False),
-                    "rotation": item.get("rotation", 0),
                     "delete": item["delete"].get(),
                     "extract": item.get("extract", tk.BooleanVar(value=False)).get(),
                 }
@@ -3588,7 +3584,6 @@ class EditTab(BaseTab):
                 delete=item.get("delete", False),
                 extract=item.get("extract", False),
                 blank=item.get("blank", False),
-                rotation=item.get("rotation", 0),
             )
             for item in snapshot["pages"]
         ]
@@ -3616,9 +3611,6 @@ class EditTab(BaseTab):
         text = f"第 {pos + 1} 頁"
         if item.get("blank"):
             text += "（空白頁）"
-        rotation = item.get("rotation", 0) % 360
-        if rotation:
-            text += f" / {rotation}°"
         if pos == self.selected_page_pos:
             text = f"▶ {text}"
         return text
@@ -3635,7 +3627,6 @@ class EditTab(BaseTab):
             os.path.abspath(item["path"]),
             int(item["index"]),
             150,
-            int(item.get("rotation", 0)) % 360,
             self.thumbnail_mark_key(mark),
         )
         thumb = self._edit_thumb_cache.get(key)
@@ -3644,7 +3635,6 @@ class EditTab(BaseTab):
                 item["path"],
                 item["index"],
                 150,
-                rotation=item.get("rotation", 0),
                 mark=mark,
             )
             self._edit_thumb_cache[key] = thumb
@@ -3686,20 +3676,8 @@ class EditTab(BaseTab):
             self.drag_cards.append(card)
             thumb = self.get_edit_thumbnail(item, mark=color)
             self.thumbs.append(thumb)
-            image_box_width = 150
-            image_box_height = int(image_box_width * 1.45)
-            image_box = ttk.Frame(
-                card,
-                width=image_box_width,
-                height=image_box_height,
-                style="Card.TFrame",
-            )
-            image_box.pack_propagate(False)
-            image_box.pack()
-            label = ttk.Label(image_box, image=thumb)
-            label.place(relx=0.5, rely=0.5, anchor="center")
-            item["page_image_box"] = image_box
-            item["page_image_widget"] = label
+            label = ttk.Label(card, image=thumb)
+            label.pack()
             self.bind_drag_sort(label, pos)
             page_label = ttk.Label(
                 card,
@@ -3724,8 +3702,6 @@ class EditTab(BaseTab):
 
             extract_row = ttk.Frame(card, style="Card.TFrame")
             extract_row.pack(fill="x", pady=(4, 0))
-            extract_row.columnconfigure(0, weight=1)
-            extract_row.columnconfigure(1, weight=0)
             extract_check = ttk.Checkbutton(
                 extract_row,
                 text="抽取",
@@ -3738,46 +3714,7 @@ class EditTab(BaseTab):
             )
             item["extract_widget"] = extract_check
 
-            rounded_button(
-                extract_row,
-                "右轉",
-                lambda p=pos: self.rotate_page_right(p),
-                width=54,
-            ).grid(row=0, column=1, sticky="e")
-
         self.update_edit_mode_controls()
-
-    def rotate_page_right(self, pos):
-        if not (0 <= pos < len(self.pages)):
-            return
-        self.push_undo()
-        item = self.pages[pos]
-        item["rotation"] = (item.get("rotation", 0) + 90) % 360
-        self.update_page_thumbnail(item)
-
-    def edit_item_mark(self, item):
-        if item.get("blank"):
-            color = (255, 210, 80, 65)
-        else:
-            color = (80, 160, 255, 70) if item["inserted"] else None
-        if item["delete"].get():
-            color = (255, 80, 80, 90)
-        return color
-
-    def update_page_thumbnail(self, item):
-        label = item.get("page_image_widget")
-        if label is None or not label.winfo_exists():
-            return
-        thumb = self.get_edit_thumbnail(item, mark=self.edit_item_mark(item))
-        label.configure(image=thumb)
-        label.image = thumb
-        item["thumb_ref"] = thumb
-        with suppress(ValueError):
-            pos = self.pages.index(item)
-            widget = item.get("page_label_widget")
-            if widget is not None and widget.winfo_exists():
-                widget.configure(text=self.page_display_text(pos, item))
-        self.update_extract_title()
 
     def update_delete_mark(self, item, label):
         """Refresh only the clicked page thumbnail when the delete check changes.
@@ -3795,18 +3732,17 @@ class EditTab(BaseTab):
         if item["delete"].get() and item.get("extract") and item["extract"].get():
             item["extract"].set(False)
 
-        self.update_page_thumbnail(item)
+        if item.get("blank"):
+            color = (255, 210, 80, 65)
+        else:
+            color = (80, 160, 255, 70) if item["inserted"] else None
+        if item["delete"].get():
+            color = (255, 80, 80, 90)
+        thumb = self.get_edit_thumbnail(item, mark=color)
+        label.configure(image=thumb)
+        label.image = thumb
+        item["thumb_ref"] = thumb
         self.update_edit_mode_controls()
-
-    def append_page_to_result(self, result, open_docs, item):
-        path = item["path"]
-        if path not in open_docs:
-            open_docs[path] = fitz.open(path)
-        result.insert_pdf(open_docs[path], from_page=item["index"], to_page=item["index"])
-        rotation = item.get("rotation", 0) % 360
-        if rotation:
-            page = result[-1]
-            page.set_rotation((page.rotation + rotation) % 360)
 
     def get_columns(self):
         return self.columns_for_width(220)
@@ -3961,7 +3897,14 @@ class EditTab(BaseTab):
         open_docs = {}
         try:
             for item in selected_items:
-                self.append_page_to_result(result, open_docs, item)
+                path = item["path"]
+                if path not in open_docs:
+                    open_docs[path] = fitz.open(path)
+                result.insert_pdf(
+                    open_docs[path],
+                    from_page=item["index"],
+                    to_page=item["index"],
+                )
 
             if result.page_count == 0:
                 messagebox.showwarning("快速抽取", "指定範圍沒有可輸出的頁面。")
@@ -4032,7 +3975,12 @@ class EditTab(BaseTab):
         open_docs = {}
         try:
             for item in selected:
-                self.append_page_to_result(result, open_docs, item)
+                path = item["path"]
+                if path not in open_docs:
+                    open_docs[path] = fitz.open(path)
+                result.insert_pdf(
+                    open_docs[path], from_page=item["index"], to_page=item["index"]
+                )
             result.save(output, garbage=4, deflate=True)
             self.title.configure(
                 text=f"{os.path.basename(self.base_path)} / 已抽取 {len(selected)} 頁另存至：{output}"
@@ -4089,7 +4037,12 @@ class EditTab(BaseTab):
             for item in self.pages:
                 if item["delete"].get():
                     continue
-                self.append_page_to_result(result, open_docs, item)
+                path = item["path"]
+                if path not in open_docs:
+                    open_docs[path] = fitz.open(path)
+                result.insert_pdf(
+                    open_docs[path], from_page=item["index"], to_page=item["index"]
+                )
             if result.page_count == 0:
                 messagebox.showwarning("沒有頁面", "全部頁面都被刪除，無法輸出。")
                 return
@@ -5818,10 +5771,10 @@ class PDFTurnPanel:
         self.content.pack(fill="both", expand=True, padx=12, pady=(0, 12))
 
         self.tabs = [
-            ("頁面編排", RotateTab(self, self.content)),
+            ("頁面移轉", RotateTab(self, self.content)),
             ("壓縮檔案", CompressTab(self, self.content)),
             ("頁面合併", MergeTab(self, self.content)),
-            ("頁面刪取", EditTab(self, self.content)),
+            ("頁面編輯", EditTab(self, self.content)),
         ]
         self.tab_buttons = []
         for index, (title, _tab) in enumerate(self.tabs):
