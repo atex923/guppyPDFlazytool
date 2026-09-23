@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 # =========================================================
-# Guppy PDF手搓工具 V1.4.5
+# Guppy PDF手搓工具 V1.4.4
 # =========================================================
 # 程式歷史摘要：
 # 說明：第一碼或第二碼進版時，本區整併為該碼號的改版重點；
@@ -72,7 +72,6 @@
 # V1.4.2   修正原生標題欄系統匣鍵定位、恢復共用頁尾、資料夾按鈕單列及啟動自動載入。
 # V1.4.3   系統匣按鈕依最小化鍵實際邊界貼齊；等待圖示就緒才隱藏，恢復後保留圖示。
 # V1.4.4   預設縮放勾選框移至翻頁鈕右側，啟動預設不勾選。
-# V1.4.5   系統匣按鈕依 DWM 原生控制區定位，貼齊最小化、最大化、關閉三鍵左側。
 #
 # 建議安裝：
 # pip install customtkinter PyMuPDF pillow numpy tkinterdnd2
@@ -487,7 +486,7 @@ ImageFont = LazyImport("PIL.ImageFont", "pillow")
 ctk.set_appearance_mode("light")
 ctk.set_default_color_theme("blue")
 
-APP_VERSION = "1.4.5"
+APP_VERSION = "1.4.4"
 APP_TITLE = f"Guppy PDF手搓工具 V{APP_VERSION}"
 
 BG = "#EEF2F7"
@@ -5889,12 +5888,6 @@ class NativeTitleTrayButton:
         api(u, "IsIconic", wintypes.BOOL, H)
         api(u, "IsWindow", wintypes.BOOL, H)
         api(u, "GetWindowRect", wintypes.BOOL, H, ctypes.POINTER(wintypes.RECT))
-        self.get_dwm_attribute = None
-        with suppress(OSError, AttributeError):
-            self.dwm = ctypes.WinDLL("dwmapi", use_last_error=True)
-            self.get_dwm_attribute = api(
-                self.dwm, "DwmGetWindowAttribute", ctypes.c_long,
-                H, wintypes.DWORD, ctypes.c_void_p, wintypes.DWORD)
         api(u, "CreateWindowExW", H, wintypes.DWORD, wintypes.LPCWSTR, wintypes.LPCWSTR,
             wintypes.DWORD, I, I, I, I, H, wintypes.HMENU, wintypes.HINSTANCE, ctypes.c_void_p)
         api(u, "DestroyWindow", wintypes.BOOL, H)
@@ -5991,32 +5984,6 @@ class NativeTitleTrayButton:
             self._minimize_rect, self._minimize_geometry = rect, geometry
         return self._minimize_geometry
 
-    @staticmethod
-    def caption_geometry(window_rect, buttons_rect):
-        """DWM 控制區為視窗相對座標，轉為螢幕座標並放在三鍵左側。"""
-        wx, wy, wr, wb = window_rect
-        left, top, right, bottom = buttons_rect
-        width = (right - left) // 3
-        if (width <= 0 or bottom <= top or left < width or top < 0
-                or right > wr - wx or bottom > wb - wy):
-            return None
-        return wx + left - width, wy + top, width, bottom - top
-
-    def get_caption_geometry(self):
-        c, wt, u = self.ctypes, self.wt, self.u
-        if self.get_dwm_attribute is not None:
-            buttons, window = wt.RECT(), wt.RECT()
-            # DWMWA_CAPTION_BUTTON_BOUNDS includes all three native buttons.
-            result = self.get_dwm_attribute(
-                self.hwnd, 5, c.byref(buttons), c.sizeof(buttons))
-            if result == 0 and u.GetWindowRect(self.hwnd, c.byref(window)):
-                geometry = self.caption_geometry(
-                    (window.left, window.top, window.right, window.bottom),
-                    (buttons.left, buttons.top, buttons.right, buttons.bottom))
-                if geometry is not None:
-                    return geometry
-        return self.get_minimize_geometry()
-
     def on_configure(self, event):
         if event.widget is self.root:
             self.sync()
@@ -6032,7 +5999,7 @@ class NativeTitleTrayButton:
         # 取得按鈕螢幕座標與設定位置時使用同一 DPI 座標系統。
         previous = self.dpi_context(-4) if self.dpi_context else None
         try:
-            rect = self.get_caption_geometry()
+            rect = self.get_minimize_geometry()
             if rect is None:
                 u.ShowWindow(self.button, 0)
                 return

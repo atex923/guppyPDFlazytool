@@ -1,5 +1,20 @@
 # Changelog
 
+## V1.4.5
+
+- Uses the user-provided V1.4.4 standalone source as the update baseline.
+- Positions the Windows tray-hide button immediately left of the native minimize, maximize, and close buttons using DWM caption bounds.
+- Falls back to the existing accessibility/minimize-button geometry when DWM bounds are unavailable or invalid.
+- Preserves normal taskbar minimization and the existing tray-ready check before hiding.
+- Includes versioned standalone `.py` and `.pyw` sources; archives the original V1.4.4 input unchanged.
+- Syntax and mocked geometry checks run on macOS; Windows visual and tray interaction validation remains pending.
+
+## V1.4.1 - V1.4.4 (Imported History)
+
+- Per the supplied source history: adds the title-bar tray button, shared footer, folder history/restore, and rename preview retention.
+- Refines tray readiness and title-button positioning.
+- Moves the default-zoom checkbox beside page navigation and leaves it unchecked at startup.
+
 ## V1.4.0
 
 - Adds a bottom-right right-rotate button to every page card in the page-edit tool.

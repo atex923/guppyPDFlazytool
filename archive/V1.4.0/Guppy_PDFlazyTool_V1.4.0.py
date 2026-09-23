@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 # =========================================================
-# Guppy PDF手搓工具 V1.4.5
+# Guppy PDF手搓工具 V1.4.0
 # =========================================================
 # 程式歷史摘要：
 # 說明：第一碼或第二碼進版時，本區整併為該碼號的改版重點；
@@ -68,11 +68,6 @@
 # V1.2.0   正式版號升級：承接 V1.1.10 右側分頁欄系統匣與固定最上層按鈕配置。
 # V1.3.0   轉換氣體支援批次拖曳統計；頁面合併新增清單/縮圖顯示、檔名排序與上下移動。
 # V1.4.0   頁面編輯每頁新增右下角右轉鈕；右轉只刷新單頁固定縮圖框，降低整個視窗閃爍。
-# V1.4.1   標題欄新增 ▼ 系統匣按鈕；固定頁尾；記憶更名資料夾及歷史；更名保留預覽。
-# V1.4.2   修正原生標題欄系統匣鍵定位、恢復共用頁尾、資料夾按鈕單列及啟動自動載入。
-# V1.4.3   系統匣按鈕依最小化鍵實際邊界貼齊；等待圖示就緒才隱藏，恢復後保留圖示。
-# V1.4.4   預設縮放勾選框移至翻頁鈕右側，啟動預設不勾選。
-# V1.4.5   系統匣按鈕依 DWM 原生控制區定位，貼齊最小化、最大化、關閉三鍵左側。
 #
 # 建議安裝：
 # pip install customtkinter PyMuPDF pillow numpy tkinterdnd2
@@ -90,7 +85,6 @@
 from __future__ import annotations
 
 import os
-import json
 import re
 import gc
 import io
@@ -487,7 +481,7 @@ ImageFont = LazyImport("PIL.ImageFont", "pillow")
 ctk.set_appearance_mode("light")
 ctk.set_default_color_theme("blue")
 
-APP_VERSION = "1.4.5"
+APP_VERSION = "1.4.0"
 APP_TITLE = f"Guppy PDF手搓工具 V{APP_VERSION}"
 
 BG = "#EEF2F7"
@@ -5862,216 +5856,6 @@ class PDFTurnPanel:
 # =========================================================
 # Main
 # =========================================================
-class NativeTitleTrayButton:
-    """原生附屬按鈕；全部座標由 Win32 管理，不交給 Tk 浮動視窗重排。"""
-
-    def __init__(self, root, command):
-        import ctypes
-        from ctypes import wintypes
-        self.ctypes, self.wt = ctypes, wintypes
-        self.root, self.command = root, command
-        self.closed = False
-        self.job = None
-        self.font = None
-        self.font_height = None
-        u = self.u = ctypes.WinDLL("user32", use_last_error=True)
-        self.g = ctypes.WinDLL("gdi32", use_last_error=True)
-
-        def api(dll, name, result, *args):
-            fn = getattr(dll, name)
-            fn.restype, fn.argtypes = result, list(args)
-            return fn
-
-        H, I, U = wintypes.HWND, ctypes.c_int, wintypes.UINT
-        api(u, "GetAncestor", H, H, U)
-        api(u, "GetForegroundWindow", H)
-        api(u, "IsWindowVisible", wintypes.BOOL, H)
-        api(u, "IsIconic", wintypes.BOOL, H)
-        api(u, "IsWindow", wintypes.BOOL, H)
-        api(u, "GetWindowRect", wintypes.BOOL, H, ctypes.POINTER(wintypes.RECT))
-        self.get_dwm_attribute = None
-        with suppress(OSError, AttributeError):
-            self.dwm = ctypes.WinDLL("dwmapi", use_last_error=True)
-            self.get_dwm_attribute = api(
-                self.dwm, "DwmGetWindowAttribute", ctypes.c_long,
-                H, wintypes.DWORD, ctypes.c_void_p, wintypes.DWORD)
-        api(u, "CreateWindowExW", H, wintypes.DWORD, wintypes.LPCWSTR, wintypes.LPCWSTR,
-            wintypes.DWORD, I, I, I, I, H, wintypes.HMENU, wintypes.HINSTANCE, ctypes.c_void_p)
-        api(u, "DestroyWindow", wintypes.BOOL, H)
-        api(u, "ShowWindow", wintypes.BOOL, H, I)
-        api(u, "SetWindowPos", wintypes.BOOL, H, H, I, I, I, I, U)
-        api(u, "SendMessageW", wintypes.LPARAM, H, U, wintypes.WPARAM, wintypes.LPARAM)
-        api(u, "CallWindowProcW", wintypes.LPARAM, ctypes.c_void_p, H, U, wintypes.WPARAM, wintypes.LPARAM)
-        api(self.g, "CreateFontW", wintypes.HANDLE, I, I, I, I, I, wintypes.DWORD,
-            wintypes.DWORD, wintypes.DWORD, wintypes.DWORD, wintypes.DWORD,
-            wintypes.DWORD, wintypes.DWORD, wintypes.DWORD, wintypes.LPCWSTR)
-        api(self.g, "DeleteObject", wintypes.BOOL, wintypes.HANDLE)
-        name = "SetWindowLongPtrW" if ctypes.sizeof(ctypes.c_void_p) == 8 else "SetWindowLongW"
-        self.set_long = api(u, name, ctypes.c_ssize_t, H, I, ctypes.c_ssize_t)
-        self.dpi_context = None
-        if hasattr(u, "SetThreadDpiAwarenessContext"):
-            self.dpi_context = api(u, "SetThreadDpiAwarenessContext", ctypes.c_void_p, ctypes.c_void_p)
-        self.hwnd = u.GetAncestor(root.winfo_id(), 2)
-        # WS_POPUP + WS_EX_TOOLWINDOW/NOACTIVATE: 不加入工作列，也不搶走焦點。
-        self.button = u.CreateWindowExW(0x08000080, "BUTTON", "▼", 0x80000000,
-                                       0, 0, 40, 28, self.hwnd, None, None, None)
-        if not self.button:
-            raise ctypes.WinError(ctypes.get_last_error())
-        callback_type = ctypes.WINFUNCTYPE(wintypes.LPARAM, H, U, wintypes.WPARAM, wintypes.LPARAM)
-        self._pressed = False
-
-        def wndproc(hwnd, msg, wp, lp):
-            # 不讓標準按鈕在點擊時取得主視窗焦點。
-            if msg == 0x0021:  # WM_MOUSEACTIVATE / MA_NOACTIVATE
-                return 3
-            if msg == 0x0201:
-                self._pressed = True
-            clicked = False
-            if msg == 0x0202:
-                x, y = ctypes.c_short(lp & 0xffff).value, ctypes.c_short((lp >> 16) & 0xffff).value
-                clicked = self._pressed and 0 <= x < self.size[0] and 0 <= y < self.size[1]
-                self._pressed = False
-            if msg == 0x0215:  # WM_CAPTURECHANGED
-                self._pressed = False
-            result = u.CallWindowProcW(self.old_proc, hwnd, msg, wp, lp)
-            if clicked and not self.closed:
-                with suppress(tk.TclError):
-                    root.after_idle(command)
-            return result
-
-        self.size = (40, 28)
-        self.callback = callback_type(wndproc)  # 必須保持存活，供 Windows 回呼。
-        self.old_proc = self.set_long(self.button, -4, ctypes.cast(self.callback, ctypes.c_void_p).value)
-        if not self.old_proc:
-            u.DestroyWindow(self.button)
-            raise ctypes.WinError(ctypes.get_last_error())
-        self.configure_binding = root.bind("<Configure>", self.on_configure, add="+")
-        self.tick()
-
-    @staticmethod
-    def minimize_geometry(rect):
-        left, top, right, bottom = rect
-        if right <= left or bottom <= top:
-            return None
-        width = right - left
-        return left - width, top, width, bottom - top
-
-    def get_minimize_geometry(self):
-        c, wt, u = self.ctypes, self.wt, self.u
-
-        class TitleInfo(c.Structure):
-            _fields_ = [("cbSize", wt.DWORD), ("rcTitleBar", wt.RECT),
-                        ("rgstate", wt.DWORD * 6), ("rgrect", wt.RECT * 6)]
-
-        info = TitleInfo()
-        info.cbSize = c.sizeof(info)
-        u.SendMessageW(self.hwnd, 0x033F, 0, c.addressof(info))
-        mini = info.rgrect[2]
-        if info.rgstate[2] & (0x8000 | 0x10000):
-            return None
-        rect = (mini.left, mini.top, mini.right, mini.bottom)
-        geometry = self.minimize_geometry(rect)
-        if geometry is None:
-            return None
-        # 部分主題的可及性矩形含空白邊界，以 HTMINBUTTON 實際點擊範圍校準。
-        if rect != getattr(self, "_minimize_rect", None):
-            y = (mini.top + mini.bottom) // 2
-            def hit(x):
-                point = (x & 0xffff) | ((y & 0xffff) << 16)
-                return u.SendMessageW(self.hwnd, 0x0084, 0, point) == 8
-            middle = (mini.left + mini.right) // 2
-            if hit(middle):
-                left, right = middle, middle + 1
-                limit = max(32, 2 * (mini.right - mini.left))
-                while middle - left < limit and hit(left - 1):
-                    left -= 1
-                while right - middle < limit and hit(right):
-                    right += 1
-                geometry = self.minimize_geometry((left, mini.top, right, mini.bottom))
-            self._minimize_rect, self._minimize_geometry = rect, geometry
-        return self._minimize_geometry
-
-    @staticmethod
-    def caption_geometry(window_rect, buttons_rect):
-        """DWM 控制區為視窗相對座標，轉為螢幕座標並放在三鍵左側。"""
-        wx, wy, wr, wb = window_rect
-        left, top, right, bottom = buttons_rect
-        width = (right - left) // 3
-        if (width <= 0 or bottom <= top or left < width or top < 0
-                or right > wr - wx or bottom > wb - wy):
-            return None
-        return wx + left - width, wy + top, width, bottom - top
-
-    def get_caption_geometry(self):
-        c, wt, u = self.ctypes, self.wt, self.u
-        if self.get_dwm_attribute is not None:
-            buttons, window = wt.RECT(), wt.RECT()
-            # DWMWA_CAPTION_BUTTON_BOUNDS includes all three native buttons.
-            result = self.get_dwm_attribute(
-                self.hwnd, 5, c.byref(buttons), c.sizeof(buttons))
-            if result == 0 and u.GetWindowRect(self.hwnd, c.byref(window)):
-                geometry = self.caption_geometry(
-                    (window.left, window.top, window.right, window.bottom),
-                    (buttons.left, buttons.top, buttons.right, buttons.bottom))
-                if geometry is not None:
-                    return geometry
-        return self.get_minimize_geometry()
-
-    def on_configure(self, event):
-        if event.widget is self.root:
-            self.sync()
-
-    def sync(self):
-        if self.closed:
-            return
-        c, u, wt = self.ctypes, self.u, self.wt
-        if (not u.IsWindowVisible(self.hwnd) or u.IsIconic(self.hwnd)
-                or u.GetForegroundWindow() not in (self.hwnd, self.button)):
-            u.ShowWindow(self.button, 0)
-            return
-        # 取得按鈕螢幕座標與設定位置時使用同一 DPI 座標系統。
-        previous = self.dpi_context(-4) if self.dpi_context else None
-        try:
-            rect = self.get_caption_geometry()
-            if rect is None:
-                u.ShowWindow(self.button, 0)
-                return
-            x, y, width, height = rect
-            self.size = (width, height)
-            font_height = max(10, round(height * 0.48))
-            if self.font_height != font_height:
-                font = self.g.CreateFontW(-font_height, 0, 0, 0, 400, 0, 0, 0, 1, 0, 0, 5, 0, "Segoe UI")
-                if font:
-                    u.SendMessageW(self.button, 0x0030, font, 1)
-                    if self.font:
-                        self.g.DeleteObject(self.font)
-                    self.font, self.font_height = font, font_height
-            u.SetWindowPos(self.button, 0, x, y, width, height, 0x0010 | 0x0040)
-        finally:
-            if previous:
-                self.dpi_context(previous)
-
-    def tick(self):
-        if not self.closed:
-            self.sync()
-            self.job = self.root.after(50, self.tick)
-
-    def close(self):
-        if self.closed:
-            return
-        self.closed = True
-        if self.job:
-            with suppress(tk.TclError):
-                self.root.after_cancel(self.job)
-        with suppress(tk.TclError):
-            self.root.unbind("<Configure>", self.configure_binding)
-        if self.u.IsWindow(self.button):
-            self.set_long(self.button, -4, self.old_proc)
-            self.u.DestroyWindow(self.button)
-        if self.font:
-            self.g.DeleteObject(self.font)
-
-
 class PDFRenameTool:
     def __init__(self, root):
         self.root = root
@@ -6082,7 +5866,6 @@ class PDFRenameTool:
         self.root.resizable(True, True)
 
         self.state = PDFState()
-        self.load_folder_preferences()
         self.deleted_files = []
         self.move_history = []
         self.move_folder = ""
@@ -6101,9 +5884,6 @@ class PDFRenameTool:
         self.topmost_var = tk.BooleanVar(value=False)
         self.tray_icon = None
         self._tray_hiding = False
-        self._tray_ready = threading.Event()
-        self._tray_error = ""
-        self._tray_wait_job = None
         self.ocr_start = None
         self.ocr_rect_id = None
 
@@ -6113,12 +5893,10 @@ class PDFRenameTool:
         self.entry_widgets = {}
 
         self._auto_fit_preview = True
-        self.default_preview_zoom_var = tk.BooleanVar(value=False)
 
         self.create_style()
         self.create_ui()
         self.setup_tray_window_events()
-        self.root.after_idle(self.restore_last_rename_folder)
 
         # 先讓主視窗顯示出來，再用背景執行緒逐步預熱 PDF 相關模組。
         # OCR 套件仍維持真正使用時才載入，避免啟動後背景也吃太多資源。
@@ -6401,8 +6179,6 @@ class PDFRenameTool:
     # =====================================================
     def create_ui(self):
         self.root.configure(bg=BG)
-        # 先保留頁尾空間，所有分頁僅使用其上方的 main。
-        self.create_signature_footer()
 
         self.main = tk.Frame(self.root, bg=BG)
         self.main.pack(side="top", fill="both", expand=True)
@@ -6461,17 +6237,25 @@ class PDFRenameTool:
         self.create_center_move_button()
         self.create_vertical_tabs()
         self.switch_mode("rename")
+        self.create_signature_footer()
 
     def create_signature_footer(self):
-        line_height = tkinter.font.Font(root=self.root, font=SIGN_FONT).metrics("linespace")
-        self.signature_footer = tk.Frame(self.root, bg=BG, height=max(38, line_height + 12))
-        self.signature_footer.pack(side="bottom", fill="x")
-        self.signature_footer.pack_propagate(False)
-        self.signature_label = tk.Label(
-            self.signature_footer, text="Inspired by Atex's high thoughts.",
-            bg=BG, fg=FOOTER_TEXT, font=SIGN_FONT,
-        )
-        self.signature_label.place(relx=0.5, rely=0.5, anchor="center")
+        footer = tk.Frame(self.root, bg=BG, height=38)
+        footer.pack(side="bottom", fill="x")
+        footer.pack_propagate(False)
+
+        # 左右兩側採相同權重，讓簽名維持視窗正中央。
+        footer.grid_columnconfigure(0, weight=1)
+        footer.grid_columnconfigure(1, weight=0)
+        footer.grid_columnconfigure(2, weight=1)
+
+        tk.Label(
+            footer,
+            text="Inspired by Atex's high thoughts.",
+            bg=BG,
+            fg=FOOTER_TEXT,
+            font=SIGN_FONT,
+        ).grid(row=0, column=1, sticky="s", pady=(5, 5))
 
     def toggle_topmost(self):
         """依右下角勾選狀態即時切換主視窗是否固定在最上層。"""
@@ -6516,32 +6300,15 @@ class PDFRenameTool:
     # =====================================================
     def setup_tray_window_events(self):
         self.root.protocol("WM_DELETE_WINDOW", self.on_window_close)
-        self.root.after_idle(self.create_title_tray_button)
-
-    def create_title_tray_button(self):
-        if not self.is_windows():
-            return
-        try:
-            self.title_tray_control = NativeTitleTrayButton(self.root, self.hide_to_system_tray)
-        except Exception as exc:
-            messagebox.showerror("系統匣按鈕", f"無法建立標題欄按鈕：\n{exc}")
-
-    def close_title_tray_button(self):
-        control = getattr(self, "title_tray_control", None)
-        if control is not None:
-            control.close()
-            self.title_tray_control = None
 
     def is_windows(self) -> bool:
         return platform.system().lower() == "windows"
 
     def on_window_close(self):
-        self.close_title_tray_button()
         self.stop_tray_icon()
         self.root.destroy()
 
     def exit_from_tray(self):
-        self.close_title_tray_button()
         self.stop_tray_icon()
         self.root.after(0, self.root.destroy)
 
@@ -6564,110 +6331,75 @@ class PDFRenameTool:
     def ensure_tray_icon(self) -> bool:
         if self.tray_icon is not None:
             return True
+
         pystray = import_or_try_install("pystray", "pystray")
         if pystray is None:
-            messagebox.showerror("系統匣", "缺少 pystray，視窗將保持開啟。\n請安裝：pip install pystray")
+            messagebox.showerror(
+                "系統匣",
+                "缺少 pystray，無法縮到系統匣。\n\n"
+                f"請執行：\n\"{sys.executable}\" -m pip install pystray",
+            )
             return False
-        self._tray_ready = ready = threading.Event()
-        self._tray_error = ""
+
         try:
             menu = pystray.Menu(
-                pystray.MenuItem("顯示 Guppy PDF手搓工具",
-                    lambda _icon, _item: self.root.after(0, self.restore_from_tray), default=True),
-                pystray.MenuItem("結束",
-                    lambda _icon, _item: self.root.after(0, self.exit_from_tray)),
+                pystray.MenuItem(
+                    "顯示 Guppy PDF手搓工具",
+                    lambda _icon, _item: self.root.after(0, self.restore_from_tray),
+                    default=True,
+                ),
+                pystray.MenuItem(
+                    "結束",
+                    lambda _icon, _item: self.root.after(0, self.exit_from_tray),
+                ),
             )
-            icon = self.tray_icon = pystray.Icon(
-                "Guppy_PDFlazyTool", self.create_tray_image(), APP_TITLE, menu)
-            def setup(active_icon):
-                # 此回呼由 pystray 在訊息迴圈就緒後執行，不能直接操作 Tk。
-                try:
-                    if self.tray_icon is not active_icon:
-                        return
-                    active_icon.visible = True
-                    if not active_icon.visible:
-                        raise RuntimeError("系統匣圖示未成功顯示")
-                    # 關閉或逾時可能發生在圖示註冊期間。
-                    if self.tray_icon is not active_icon:
-                        active_icon.visible = False
-                        return
-                except Exception as exc:
-                    if self.tray_icon is active_icon:
-                        self._tray_error = str(exc)
-                finally:
-                    ready.set()
-            icon.run_detached(setup=setup)
+            self.tray_icon = pystray.Icon(
+                "Guppy_PDFlazyTool",
+                self.create_tray_image(),
+                APP_TITLE,
+                menu,
+            )
+            self.tray_icon.run_detached()
             return True
         except Exception as exc:
-            self.stop_tray_icon()
-            messagebox.showerror("系統匣", f"無法建立系統匣圖示，視窗將保持開啟：\n{exc}")
+            self.tray_icon = None
+            messagebox.showerror("系統匣", f"無法建立系統匣圖示：\n{exc}")
             return False
 
     def stop_tray_icon(self):
-        self._tray_hiding = False
-        if self._tray_wait_job is not None:
-            with suppress(tk.TclError):
-                self.root.after_cancel(self._tray_wait_job)
-            self._tray_wait_job = None
-        icon, self.tray_icon = self.tray_icon, None
+        icon = self.tray_icon
+        self.tray_icon = None
         if icon is not None:
-            # stop 可能等待背景執行緒；避免結束或失敗時卡住 Tk。
-            def stop():
-                with suppress(Exception):
-                    icon.stop()
-            threading.Thread(target=stop, daemon=True).start()
+            with suppress(Exception):
+                icon.stop()
 
     def hide_to_system_tray(self):
         if not self.is_windows():
             messagebox.showinfo("系統匣", "隱藏到系統匣功能限 Windows 使用。")
             return
-        if self._tray_hiding:
-            return
         if not self.ensure_tray_icon():
             return
-        self._tray_hiding = True
-        self._tray_deadline = time.monotonic() + 8.0
-        self.wait_for_tray_icon()
 
-    def wait_for_tray_icon(self):
-        self._tray_wait_job = None
-        if not self._tray_hiding:
-            return
-        icon = self.tray_icon
-        if self._tray_ready.is_set():
-            if not self._tray_error and icon is not None and icon.visible:
-                self._tray_hiding = False
-                self._tray_restore_state = self.root.state()
-                self.root.withdraw()
-                control = getattr(self, "title_tray_control", None)
-                if control is not None:
-                    control.sync()
-                with suppress(Exception):
-                    icon.notify("從通知區的 GP 圖示可恢復視窗；若未看到，請展開右下角隱藏圖示。", APP_TITLE)
-                return
-            error = self._tray_error or "系統匣圖示未能顯示"
-        elif time.monotonic() >= self._tray_deadline:
-            error = "等待系統匣圖示就緒逾時"
-        else:
-            self._tray_wait_job = self.root.after(100, self.wait_for_tray_icon)
-            return
-        self.stop_tray_icon()
-        self.root.deiconify()
-        messagebox.showerror("系統匣", f"{error}。\n視窗保持開啟，請稍後再試。")
+        try:
+            self._tray_hiding = True
+            self.root.withdraw()
+            with suppress(Exception):
+                self.tray_icon.notify(
+                    "程式仍在背景執行，從系統匣選單可重新顯示。",
+                    APP_TITLE,
+                )
+        finally:
+            self._tray_hiding = False
 
     def restore_from_tray(self):
-        # 保留圖示供下次使用，避免每次恢復就銷毀／重建造成競態。
-        self._tray_hiding = False
-        if self._tray_wait_job is not None:
-            with suppress(tk.TclError):
-                self.root.after_cancel(self._tray_wait_job)
-            self._tray_wait_job = None
-        self.root.deiconify()
-        self.root.state("zoomed" if getattr(self, "_tray_restore_state", "normal") == "zoomed" else "normal")
-        self.root.lift()
-        self.root.focus_force()
-        if bool(self.topmost_var.get()):
-            self.root.after_idle(self.root.lift)
+        try:
+            self.root.deiconify()
+            self.root.state("normal")
+            self.root.lift()
+            if bool(self.topmost_var.get()):
+                self.root.after_idle(self.root.lift)
+        finally:
+            self.stop_tray_icon()
 
     def create_center_move_button(self):
         """建立左右瀏覽區中央的向右搬移按鈕。
@@ -6689,6 +6421,21 @@ class PDFRenameTool:
         self.center_move_btn.place_forget()
 
     def create_vertical_tabs(self):
+        self.tray_button = ctk.CTkButton(
+            self.tab_bar,
+            text=".",
+            command=self.hide_to_system_tray,
+            width=50,
+            height=34,
+            corner_radius=12,
+            border_width=2,
+            fg_color=PRIMARY,
+            hover_color=PRIMARY_HOVER,
+            text_color="white",
+            font=("Microsoft JhengHei UI", 20, "bold"),
+        )
+        self.tray_button.pack(pady=(0, 8), padx=8)
+
         self.rename_tab_btn = ctk.CTkButton(
             self.tab_bar,
             text="更\n名",
@@ -6864,22 +6611,16 @@ class PDFRenameTool:
         button_row.pack(fill="x", pady=(8, 0))
 
         buttons = [
-            ("瀏覽資料夾", self.browse_folder, PRIMARY, PRIMARY_HOVER, "white"),
-            ("歷史資料夾", self.show_folder_history, PREVIEW_BLUE, PRIMARY_SOFT_HOVER, "black"),
-            ("讀取檔名", self.read_selected_filename, PREVIEW_BLUE, PRIMARY_SOFT_HOVER, "black"),
-            ("刪除檔案", self.delete_pdf, RED, RED_HOVER, "white"),
-            ("回復刪除", self.restore_pdf, YELLOW, YELLOW_HOVER, "black"),
+            ("瀏覽資料夾", self.browse_folder, 110, PRIMARY, PRIMARY_HOVER, "white"),
+            ("讀取檔名", self.read_selected_filename, 100, PREVIEW_BLUE, PRIMARY_SOFT_HOVER, "black"),
+            ("刪除檔案", self.delete_pdf, 100, RED, RED_HOVER, "white"),
+            ("回復刪除", self.restore_pdf, 100, YELLOW, YELLOW_HOVER, "black"),
         ]
-        self.folder_buttons = []
-        for column, (text, cmd, color, hover, text_color) in enumerate(buttons):
-            button_row.grid_columnconfigure(column, weight=1, uniform="folder_buttons")
-            button = ctk.CTkButton(
-                button_row, text=text, command=cmd, width=1, height=32,
-                corner_radius=8, fg_color=color, hover_color=hover,
-                text_color=text_color, font=("Microsoft JhengHei UI", 14),
+
+        for text, cmd, width, color, hover, text_color in buttons:
+            self.button(button_row, text, cmd, width, color, hover, text_color).pack(
+                side="left", padx=2
             )
-            button.grid(row=0, column=column, sticky="ew", padx=2)
-            self.folder_buttons.append(button)
 
     def create_treeview(self, parent):
         frame = self.card(parent)
@@ -7027,12 +6768,6 @@ class PDFRenameTool:
 
         for text, cmd in (("<", self.prev_page), (">", self.next_page)):
             self.preview_button(left, text, cmd, 38).pack(side="left", padx=2)
-
-        self.default_preview_zoom_check = ctk.CTkCheckBox(
-            left, text="預設縮放", variable=self.default_preview_zoom_var,
-            font=BTN_FONT, width=100, checkbox_width=20, checkbox_height=20,
-        )
-        self.default_preview_zoom_check.pack(side="left", padx=(8, 2))
 
         right = tk.Frame(bar, bg=CARD)
         right.grid(row=1, column=0, sticky="ew", padx=10, pady=(0, 8))
@@ -7600,76 +7335,16 @@ class PDFRenameTool:
     # =====================================================
     # Folder / Tree
     # =====================================================
-    def load_folder_preferences(self):
-        base = Path(os.environ.get("APPDATA") or Path.home()) / "Guppy_PDFlazyTool"
-        self.folder_settings_path = base / "folders.json"
-        self.rename_recent_folders = []
-        self.last_rename_folder = ""
-        try:
-            data = json.loads(self.folder_settings_path.read_text(encoding="utf-8"))
-            self.rename_recent_folders = [p for p in data.get("recent", [])
-                                          if isinstance(p, str) and p][:20]
-            last = data.get("last", "")
-            self.last_rename_folder = last if isinstance(last, str) else ""
-        except (OSError, ValueError, TypeError, AttributeError):
-            pass
-
-    def restore_last_rename_folder(self):
-        """在清單與預覽控制項建立後，自動載入最後成功開啟的資料夾。"""
-        folder = self.last_rename_folder
-        if folder and os.path.isdir(folder):
-            self.set_rename_folder(folder)
-        elif folder:
-            # 暫時離線的磁碟仍保留記錄，不覆寫成其他資料夾。
-            self.folder_var.set(folder)
-
-    def set_rename_folder(self, folder):
-        folder = os.path.abspath(folder)
-        if not os.path.isdir(folder):
-            messagebox.showwarning("資料夾不存在", f"無法開啟：\n{folder}")
+    def browse_folder(self):
+        folder = filedialog.askdirectory()
+        if not folder:
             return
-        if os.path.normcase(folder) != os.path.normcase(self.state.folder):
-            self.clear_current_pdf(clear_canvas=True)
+
         self.state.folder = folder
         self.folder_var.set(folder)
-        self.last_rename_folder = folder
-        self.rename_recent_folders = [folder] + [
-            p for p in self.rename_recent_folders
-            if os.path.normcase(p) != os.path.normcase(folder)][:19]
-        try:
-            self.folder_settings_path.parent.mkdir(parents=True, exist_ok=True)
-            temporary = self.folder_settings_path.with_suffix(".tmp")
-            temporary.write_text(json.dumps({"last": folder, "recent": self.rename_recent_folders},
-                                             ensure_ascii=False, indent=2), encoding="utf-8")
-            temporary.replace(self.folder_settings_path)
-        except OSError as exc:
-            messagebox.showwarning("資料夾記錄", f"資料夾已開啟，但無法儲存歷史記錄：\n{exc}")
         self.load_pdfs()
         if not self.move_folder:
             self.set_move_folder(folder)
-
-    def browse_folder(self):
-        initial = self.last_rename_folder
-        while initial and not os.path.isdir(initial):
-            parent = os.path.dirname(initial)
-            if parent == initial:
-                initial = ""
-                break
-            initial = parent
-        folder = filedialog.askdirectory(parent=self.root, initialdir=initial or str(Path.home()))
-        if folder:
-            self.set_rename_folder(folder)
-
-    def show_folder_history(self):
-        menu = tk.Menu(self.root, tearoff=False)
-        for folder in self.rename_recent_folders:
-            menu.add_command(label=folder, command=lambda p=folder: self.set_rename_folder(p))
-        if not self.rename_recent_folders:
-            menu.add_command(label="尚無歷史資料夾", state="disabled")
-        try:
-            menu.tk_popup(self.root.winfo_pointerx(), self.root.winfo_pointery())
-        finally:
-            menu.grab_release()
 
     def read_selected_filename(self):
         """將左側目前選取的 PDF 檔名帶入右下方「變更檔名」欄位。"""
@@ -7719,10 +7394,6 @@ class PDFRenameTool:
         if not values:
             return
 
-        selected_path = str(Path(self.state.folder) / values[1])
-        # 更名後重新選取同一份文件時，不要再次 fit_page 重設預覽。
-        if self.pdf_doc is not None and selected_path == self.state.current_pdf_path:
-            return
         self.state.selected_pdf = values[1]
         self.state.current_pdf_path = str(
             Path(self.state.folder) / self.state.selected_pdf
@@ -7730,11 +7401,7 @@ class PDFRenameTool:
         self.state.current_page = 0
 
         self.open_pdf(self.state.current_pdf_path)
-        if self.default_preview_zoom_var.get():
-            self.fit_page()
-        else:
-            self._auto_fit_preview = False
-            self.show_preview()
+        self.fit_page()
 
     # =====================================================
     # PDF Preview
@@ -8004,7 +7671,6 @@ class PDFRenameTool:
             messagebox.showerror("錯誤", f"檔案已存在：\n{new_path.name}")
             return
 
-        view_x, view_y = self.canvas.xview()[0], self.canvas.yview()[0]
         try:
             self.close_pdf()
             old_path.rename(new_path)
@@ -8016,8 +7682,6 @@ class PDFRenameTool:
             self.load_pdfs()
             self.select_pdf_in_tree(new_path.name)
             self.show_preview()
-            self.canvas.xview_moveto(view_x)
-            self.canvas.yview_moveto(view_y)
 
         except Exception as exc:
             messagebox.showerror("錯誤", str(exc))

@@ -6,8 +6,8 @@ The repository root should contain only the latest versioned sources:
 
 - `../Guppy_PDFlazyTool.py`
 - `../Guppy_PDFlazyTool.pyw`
-- `../Guppy_PDFlazyTool_V1.4.0.py`
-- `../Guppy_PDFlazyTool_V1.4.0.pyw`
+- `../Guppy_PDFlazyTool_V1.4.5.py`
+- `../Guppy_PDFlazyTool_V1.4.5.pyw`
 
 ## Layout
 
@@ -40,6 +40,8 @@ Each historical version is stored in its own folder:
 - `V1.1.10/`
 - `V1.2.0/`
 - `V1.3.0/`
+- `V1.4.0/`
+- `V1.4.4/` (user-provided original standalone `.pyw`)
 
 ## Legacy Git Snapshots
 
